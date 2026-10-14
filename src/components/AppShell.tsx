@@ -23,29 +23,6 @@ const NAV_ITEMS = [
   { key: 'contractors' as const, label: 'Contractors', icon: Users },
 ];
 
-const TAB_INFO: Record<string, { title: string; subtitle: string }> = {
-  portfolio: {
-    title: 'Portfolio Overview',
-    subtitle: 'Cross-project quality health & executive governance',
-  },
-  wir: {
-    title: 'Work Inspection Requests',
-    subtitle: 'QA/QC signoffs, pour clearances & SLA tracking',
-  },
-  nc: {
-    title: 'Non-Compliance Register',
-    subtitle: 'Structural defects, rectification workflows & RERA liability',
-  },
-  quality: {
-    title: 'Quality Score Analytics',
-    subtitle: 'Dynamic scoring models, component weights & audits',
-  },
-  contractors: {
-    title: 'Contractor Scorecards',
-    subtitle: 'Vendor accountability, first-time pass rates & retention risk',
-  },
-};
-
 const DEMO_STEPS = [
   {
     step: 1,
@@ -310,103 +287,96 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Vertical Navigation Links */}
-          <div className="p-3 space-y-5">
-            <div>
-              <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
-                Quality Management
-              </p>
-              <nav className="space-y-1">
-                {NAV_ITEMS.map(item => {
-                  const active = state.activeTab === item.key;
-                  const Icon = item.icon;
-                  const badge = item.key === 'nc' && critNCs > 0
-                    ? critNCs
-                    : item.key === 'wir' && overdueWIRs > 0
-                    ? overdueWIRs
-                    : null;
-                  const badgeTitle = item.key === 'nc'
-                    ? `${critNCs} Critical Non-Compliances`
-                    : item.key === 'wir'
-                    ? `${overdueWIRs} Overdue Inspections`
-                    : '';
+          <div className="p-3 space-y-3">
+            <nav className="space-y-1">
+              {NAV_ITEMS.map(item => {
+                const active = state.activeTab === item.key;
+                const Icon = item.icon;
+                const badge = item.key === 'nc' && critNCs > 0
+                  ? critNCs
+                  : item.key === 'wir' && overdueWIRs > 0
+                  ? overdueWIRs
+                  : null;
+                const badgeTitle = item.key === 'nc'
+                  ? `${critNCs} Critical Non-Compliances`
+                  : item.key === 'wir'
+                  ? `${overdueWIRs} Overdue Inspections`
+                  : '';
 
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => {
-                        setTab(item.key);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={clsx(
-                        'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150',
-                        active
-                          ? 'bg-[#18181B] text-white shadow-xs'
-                          : 'text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100/80 font-semibold'
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Icon size={16} className={clsx('flex-shrink-0', active ? 'text-white' : 'text-[#94A3B8]')} />
-                        <span className="whitespace-nowrap">{item.label}</span>
-                      </div>
-                      {badge !== null && (
-                        <span
-                          title={badgeTitle}
-                          className={clsx(
-                            'text-[10px] min-w-[20px] h-5 px-1.5 rounded-full font-black inline-flex items-center justify-center leading-none flex-shrink-0 shadow-2xs',
-                            active
-                              ? 'bg-white/20 text-white'
-                              : item.key === 'nc'
-                              ? 'bg-rose-100 text-[#9F1239] border border-rose-300'
-                              : 'bg-amber-100 text-[#B45309] border border-amber-300'
-                          )}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      setTab(item.key);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={clsx(
+                      'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150',
+                      active
+                        ? 'bg-[#18181B] text-white shadow-xs'
+                        : 'text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100/80 font-semibold'
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon size={16} className={clsx('flex-shrink-0', active ? 'text-white' : 'text-[#94A3B8]')} />
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </div>
+                    {badge !== null && (
+                      <span
+                        title={badgeTitle}
+                        className={clsx(
+                          'text-[10px] min-w-[20px] h-5 px-1.5 rounded-full font-black inline-flex items-center justify-center leading-none flex-shrink-0 shadow-2xs',
+                          active
+                            ? 'bg-white/20 text-white'
+                            : item.key === 'nc'
+                            ? 'bg-rose-100 text-[#9F1239] border border-rose-300'
+                            : 'bg-amber-100 text-[#B45309] border border-amber-300'
+                        )}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Subtle Divider */}
+            <div className="border-t border-[#F1F5F9] my-2" />
 
             {/* Executive Quick Actions */}
-            <div>
-              <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
-                Executive Actions
-              </p>
-              <div className="space-y-1">
-                <button
-                  onClick={() => {
-                    handleExport();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-slate-100/80 transition-colors"
-                >
-                  <Download size={15} className="text-[#94A3B8] flex-shrink-0" />
-                  <span className="whitespace-nowrap">Export Quality CSV</span>
-                </button>
+            <div className="space-y-1">
+              <button
+                onClick={() => {
+                  handleExport();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-slate-100/80 transition-colors"
+              >
+                <Download size={15} className="text-[#94A3B8] flex-shrink-0" />
+                <span className="whitespace-nowrap">Export Quality CSV</span>
+              </button>
 
-                <button
-                  onClick={() => {
-                    setTourOpen(!tourOpen);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={clsx(
-                    'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border',
-                    tourOpen
-                      ? 'bg-[#18181B] text-white border-transparent'
-                      : 'bg-blue-50/60 text-[#1E3A8A] border-blue-200/80 hover:bg-blue-100/70'
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={14} className={tourOpen ? 'text-amber-300' : 'text-[#315EFB]'} />
-                    <span className="whitespace-nowrap">Executive Tour</span>
-                  </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-extrabold bg-blue-200/60 text-blue-900 leading-none">
-                    {currentStepIndex + 1}/12
-                  </span>
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setTourOpen(!tourOpen);
+                  setMobileMenuOpen(false);
+                }}
+                className={clsx(
+                  'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border',
+                  tourOpen
+                    ? 'bg-[#18181B] text-white border-transparent'
+                    : 'bg-blue-50/60 text-[#1E3A8A] border-blue-200/80 hover:bg-blue-100/70'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className={tourOpen ? 'text-amber-300' : 'text-[#315EFB]'} />
+                  <span className="whitespace-nowrap">Executive Tour</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-extrabold bg-blue-200/60 text-blue-900 leading-none">
+                  {currentStepIndex + 1}/12
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -420,7 +390,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-[#0F172A] truncate leading-tight">Quality Head</p>
-                <p className="text-[10px] text-[#94A3B8] font-medium truncate mt-0.5">Executive Sponsor</p>
               </div>
             </div>
             <button
@@ -441,8 +410,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           MAIN CONTENT COLUMN
           ============================================================ */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Slim Executive Top Bar with View Title, Search & Alerts */}
-        <header className="sticky top-0 z-30 h-16 bg-white/85 backdrop-blur-md border-b border-black/[0.06] flex items-center justify-between px-6 sm:px-8">
+        {/* Slim Executive Top Bar with Search & Alerts */}
+        <header className="sticky top-0 z-30 h-14 bg-white/85 backdrop-blur-md border-b border-black/[0.06] flex items-center justify-between px-6 sm:px-8">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger Toggle */}
             <button
@@ -452,16 +421,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Menu size={16} />
             </button>
-
-            {/* View Breadcrumb / Title */}
-            <div>
-              <h1 className="text-sm font-extrabold text-[#0F172A] tracking-tight">
-                {TAB_INFO[state.activeTab]?.title ?? 'Executive Dashboard'}
-              </h1>
-              <p className="text-[11px] text-[#64748B] hidden sm:block">
-                {TAB_INFO[state.activeTab]?.subtitle ?? 'BombayDC Construction Quality Operating System'}
-              </p>
-            </div>
           </div>
 
           {/* Right Header Actions */}
