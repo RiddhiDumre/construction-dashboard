@@ -1,12 +1,14 @@
 // ============================================================
 // METRIC CALCULATIONS — derived from seed data
-// All portfolio, quality score, and contractor metrics live here
+// All portfolio, quality score, contractor, and WIP metrics live here
 // ============================================================
 
 import {
   PROJECTS, CONTRACTORS, WIR_RECORDS, NC_RECORDS, AUDIT_RECORDS, HISTORICAL_SCORES,
+  TOWERS_DATA, FLOORS_DATA, WIP_ACTIVITIES, PORTFOLIO_PROGRESS_CURVE,
   DEFAULT_WEIGHTS, NC_PENALTIES, RAG_THRESHOLDS,
   type Project, type Contractor, type WIR, type NC, type Audit, type ScoreWeights,
+  type TowerBuilding, type FloorProgress, type WIPActivity, type ProgressCurvePoint,
 } from './seedData';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -50,7 +52,7 @@ export function calcNCHealth(ncs: NC[], asOfDate?: string): number {
     const base = NC_PENALTIES[nc.severity] ?? 0;
     score -= base;
 
-    // Overdue penalty
+    // Overdue penalty: 2 pts per full week overdue, capped at 10 pts
     const due = new Date(nc.dueDate);
     if (today > due) {
       const daysOverdue = Math.floor((today.getTime() - due.getTime()) / 86400000);
@@ -126,11 +128,12 @@ export function getProjectHealthCategory(
   qualityScore: number,
   criticalOpenNCs: number,
   overdueWIRs: number,
+  progressVariance: number = 0,
 ): 'On Track' | 'At Risk' | 'Critical' {
-  if (qualityScore < 60 || criticalOpenNCs >= 3) {
+  if (qualityScore < 60 || criticalOpenNCs >= 2 || progressVariance <= -15) {
     return 'Critical';
   }
-  if (qualityScore < 80 || criticalOpenNCs > 0 || overdueWIRs > 0) {
+  if (qualityScore < 80 || criticalOpenNCs > 0 || overdueWIRs > 0 || progressVariance <= -5) {
     return 'At Risk';
   }
   return 'On Track';
@@ -149,6 +152,7 @@ export interface ProjectMetrics {
   breakdown: QualityScoreBreakdown;
   prevScore: number | null;
   scoreDelta: number | null;
+  progressVariance: number;
 }
 
 export function getProjectMetrics(
@@ -157,14 +161,15 @@ export function getProjectMetrics(
   wirs?: WIR[],
   ncs?: NC[],
 ): ProjectMetrics {
-  const project = PROJECTS.find(p => p.id === projectId)!;
+  const project = PROJECTS.find(p => p.id === projectId) || PROJECTS[0];
   const breakdown = calcQualityScore(projectId, weights, wirs, ncs);
   const projectWIRs = (wirs ?? WIR_RECORDS).filter(w => w.projectId === projectId);
   const projectNCs = (ncs ?? NC_RECORDS).filter(n => n.projectId === projectId);
   const openNCs = projectNCs.filter(n => n.status !== 'Closed');
   const overdueWIRs = projectWIRs.filter(w => w.slaBreach && (w.status === 'Submitted' || w.status === 'Awaiting Review'));
   const criticalOpenNCs = openNCs.filter(n => n.severity === 'Critical').length;
-  const healthCategory = getProjectHealthCategory(breakdown.finalScore, criticalOpenNCs, overdueWIRs.length);
+  const progressVariance = project.progressPercentage - project.targetProgressPercentage;
+  const healthCategory = getProjectHealthCategory(breakdown.finalScore, criticalOpenNCs, overdueWIRs.length, progressVariance);
 
   // Previous period score from HISTORICAL_SCORES
   const hist = HISTORICAL_SCORES.filter(h => h.projectId === projectId).sort((a, b) => b.month.localeCompare(a.month));
@@ -184,6 +189,7 @@ export function getProjectMetrics(
     breakdown,
     prevScore,
     scoreDelta,
+    progressVariance,
   };
 }
 
@@ -192,63 +198,163 @@ export function getAllProjectMetrics(
   wirs?: WIR[],
   ncs?: NC[],
 ): ProjectMetrics[] {
-  return PROJECTS.map(p => getProjectMetrics(p.id, weights, wirs, ncs)).sort((a, b) => a.qualityScore - b.qualityScore);
+  return PROJECTS.map(p => getProjectMetrics(p.id, weights, wirs, ncs))
+    .sort((a, b) => {
+      // Sort priority: Critical first, then At Risk, then On Track.
+      // Within same health tier, lowest Quality Score first.
+      const rank = { Critical: 0, 'At Risk': 1, 'On Track': 2 };
+      if (rank[a.healthCategory] !== rank[b.healthCategory]) {
+        return rank[a.healthCategory] - rank[b.healthCategory];
+      }
+      return a.qualityScore - b.qualityScore;
+    });
 }
 
-// ── Portfolio KPIs ────────────────────────────────────────────
-export interface PortfolioKPIs {
-  avgQualityScore: number;
-  prevAvgQualityScore: number | null;
-  firstTimePassRate: number;
-  prevFirstTimePassRate: number | null;
+// ── Overview 4 Portfolio KPIs ──────────────────────────────────
+export interface OverviewPortfolioKPIs {
+  overallProgress: number;
+  overallTargetProgress: number;
+  progressVariance: number;
+  projectsTotal: number;
+  projectsOnTrack: number;
+  projectsAtRisk: number;
+  projectsCritical: number;
+  overdueWIRs: number;
   openNCs: number;
-  criticalOpenNCs: number;
-  avgDaysToClose: number;
+  criticalNCs: number;
+  avgQualityScore: number;
 }
 
-export function getPortfolioKPIs(
+export function getOverviewPortfolioKPIs(
+  city?: string,
   weights: ScoreWeights = DEFAULT_WEIGHTS,
   wirs?: WIR[],
   ncs?: NC[],
-): PortfolioKPIs {
+): OverviewPortfolioKPIs {
   const activeWIRs = wirs ?? WIR_RECORDS;
   const activeNCs = ncs ?? NC_RECORDS;
-  const allMetrics = getAllProjectMetrics(weights, activeWIRs, activeNCs);
-  const scores = allMetrics.map(m => m.qualityScore);
-  const avgQualityScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  let allMetrics = getAllProjectMetrics(weights, activeWIRs, activeNCs);
 
-  // Previous month scores from history
-  const prevMonthScores = HISTORICAL_SCORES.filter(h => {
-    const months = HISTORICAL_SCORES.filter(hh => hh.projectId === h.projectId).map(hh => hh.month).sort();
-    return h.month === months[months.length - 2];
-  });
-  const prevAvgQualityScore = prevMonthScores.length > 0
-    ? Math.round(prevMonthScores.reduce((a, b) => a + b.score, 0) / prevMonthScores.length)
-    : null;
+  if (city && city !== 'All locations' && city !== 'All Locations') {
+    if (city.toLowerCase() === 'mumbai') {
+      allMetrics = allMetrics.filter(m => m.project.city === 'Mumbai' || m.project.city === 'Navi Mumbai' || m.project.city === 'Thane');
+    } else {
+      allMetrics = allMetrics.filter(m => m.project.city.toLowerCase() === city.toLowerCase());
+    }
+  }
 
-  // First-time pass rate across all WIRs
-  const firstTimePassRate = calcWIRPassRate(activeWIRs);
-  const prevFirstTimePassRate = 64; // Historical snapshot
+  const projectIds = allMetrics.map(m => m.project.id);
+  const scopedWIRs = activeWIRs.filter(w => projectIds.includes(w.projectId));
+  const scopedNCs = activeNCs.filter(n => projectIds.includes(n.projectId));
 
-  // Open NCs
-  const openNCs = activeNCs.filter(n => n.status !== 'Closed');
-  const criticalOpenNCs = openNCs.filter(n => n.severity === 'Critical').length;
+  const totalProgress = allMetrics.length > 0
+    ? Math.round(allMetrics.reduce((sum, m) => sum + m.project.progressPercentage, 0) / allMetrics.length)
+    : 0;
+  const targetProgress = allMetrics.length > 0
+    ? Math.round(allMetrics.reduce((sum, m) => sum + m.project.targetProgressPercentage, 0) / allMetrics.length)
+    : 0;
 
-  // Average days to close
-  const closedNCs = activeNCs.filter(n => n.status === 'Closed');
-  const avgDaysToClose = closedNCs.length > 0
-    ? Math.round(closedNCs.reduce((acc, nc) => acc + nc.age, 0) / closedNCs.length)
+  const onTrack = allMetrics.filter(m => m.healthCategory === 'On Track').length;
+  const atRisk = allMetrics.filter(m => m.healthCategory === 'At Risk').length;
+  const critical = allMetrics.filter(m => m.healthCategory === 'Critical').length;
+
+  const overdueWIRs = scopedWIRs.filter(w => w.slaBreach && (w.status === 'Submitted' || w.status === 'Awaiting Review')).length;
+  const openNCs = scopedNCs.filter(n => n.status !== 'Closed');
+  const criticalNCs = openNCs.filter(n => n.severity === 'Critical').length;
+
+  const avgQualityScore = allMetrics.length > 0
+    ? Math.round(allMetrics.reduce((sum, m) => sum + m.qualityScore, 0) / allMetrics.length)
     : 0;
 
   return {
-    avgQualityScore,
-    prevAvgQualityScore,
-    firstTimePassRate,
-    prevFirstTimePassRate,
+    overallProgress: totalProgress,
+    overallTargetProgress: targetProgress,
+    progressVariance: totalProgress - targetProgress,
+    projectsTotal: allMetrics.length,
+    projectsOnTrack: onTrack,
+    projectsAtRisk: atRisk,
+    projectsCritical: critical,
+    overdueWIRs,
     openNCs: openNCs.length,
-    criticalOpenNCs,
-    avgDaysToClose,
+    criticalNCs,
+    avgQualityScore,
   };
+}
+
+// ── WIP Summary Metrics ───────────────────────────────────────
+export interface WIPSummaryMetrics {
+  totalBuildings: number;
+  buildingsCompleted: number;
+  buildingsUnderConstruction: number;
+  buildingsDelayed: number;
+  overallActualProgress: number;
+  overallPlannedProgress: number;
+  progressVariance: number;
+}
+
+export function getWIPSummaryMetrics(city?: string, projectId?: string): WIPSummaryMetrics {
+  let towers = [...TOWERS_DATA];
+
+  if (projectId) {
+    towers = towers.filter(t => t.projectId === projectId);
+  } else if (city && city !== 'All locations' && city !== 'All Locations') {
+    const matchingProjects = PROJECTS.filter(p => {
+      if (city.toLowerCase() === 'mumbai') return p.city === 'Mumbai' || p.city === 'Navi Mumbai' || p.city === 'Thane';
+      return p.city.toLowerCase() === city.toLowerCase();
+    }).map(p => p.id);
+    towers = towers.filter(t => matchingProjects.includes(t.projectId));
+  }
+
+  const total = towers.length;
+  const completed = towers.filter(t => t.actualProgress >= 95).length;
+  const delayed = towers.filter(t => t.status === 'Delayed').length;
+  const underConstruction = total - completed;
+
+  const avgActual = total > 0 ? Math.round(towers.reduce((acc, t) => acc + t.actualProgress, 0) / total) : 0;
+  const avgPlanned = total > 0 ? Math.round(towers.reduce((acc, t) => acc + t.plannedProgress, 0) / total) : 0;
+
+  return {
+    totalBuildings: total,
+    buildingsCompleted: completed,
+    buildingsUnderConstruction: underConstruction,
+    buildingsDelayed: delayed,
+    overallActualProgress: avgActual,
+    overallPlannedProgress: avgPlanned,
+    progressVariance: avgActual - avgPlanned,
+  };
+}
+
+// ── WIP Progress S-Curve ──────────────────────────────────────
+export function getProgressCurveData(city?: string, projectId?: string): ProgressCurvePoint[] {
+  if (projectId === 'P004') {
+    // Riverstone: significantly behind plan
+    return [
+      { period: 'Apr 25', planned: 20, actual: 20 },
+      { period: 'May 25', planned: 28, actual: 26 },
+      { period: 'Jun 25', planned: 36, actual: 32 },
+      { period: 'Jul 25', planned: 45, actual: 38 },
+      { period: 'Aug 25', planned: 54, actual: 44 },
+      { period: 'Sep 25', planned: 62, actual: 48 },
+      { period: 'Oct 25', planned: 70, actual: 48 },
+      { period: 'Nov 25', planned: 78, actual: 48, target: 78 },
+      { period: 'Dec 25', planned: 85, actual: 48, target: 85 },
+    ];
+  }
+  if (projectId === 'P005') {
+    // Harbour Point: ahead of plan
+    return [
+      { period: 'Apr 25', planned: 60, actual: 62 },
+      { period: 'May 25', planned: 68, actual: 70 },
+      { period: 'Jun 25', planned: 75, actual: 78 },
+      { period: 'Jul 25', planned: 80, actual: 82 },
+      { period: 'Aug 25', planned: 84, actual: 85 },
+      { period: 'Sep 25', planned: 86, actual: 88 },
+      { period: 'Oct 25', planned: 90, actual: 88 },
+      { period: 'Nov 25', planned: 94, actual: 88, target: 94 },
+      { period: 'Dec 25', planned: 100, actual: 88, target: 100 },
+    ];
+  }
+  return PORTFOLIO_PROGRESS_CURVE;
 }
 
 // ── Contractor Metrics ────────────────────────────────────────
@@ -285,7 +391,7 @@ export function getContractorMetrics(
   const passRate = calcWIRPassRate(contractorWIRs);
   const repeatNCs = contractorNCs.filter(n => n.isRepeat).length;
 
-  // Simple trend: compare first-pass rate of recent vs older WIRs
+  // Trend: compare first-pass rate of recent vs older WIRs
   const sortedWIRs = [...contractorWIRs].sort((a, b) => a.submittedDate.localeCompare(b.submittedDate));
   const half = Math.floor(sortedWIRs.length / 2);
   const olderWIRs = sortedWIRs.slice(0, half);
@@ -308,7 +414,7 @@ export function getContractorMetrics(
     repeatNCCount: repeatNCs,
     projects: projectIds,
     trend,
-    limitedEvidence: contractorWIRs.length < 5,
+    limitedEvidence: contractorWIRs.length < 4,
   };
 }
 
@@ -316,7 +422,13 @@ export function getAllContractorMetrics(wirs?: WIR[], ncs?: NC[]): ContractorMet
   return CONTRACTORS
     .map(c => getContractorMetrics(c.id, wirs, ncs))
     .filter(m => m.totalWIRs > 0)
-    .sort((a, b) => a.firstTimePassRate - b.firstTimePassRate);
+    .sort((a, b) => {
+      // Risk order: lowest pass rate and highest critical NCs first
+      if (a.criticalOpenNCs !== b.criticalOpenNCs) {
+        return b.criticalOpenNCs - a.criticalOpenNCs;
+      }
+      return a.firstTimePassRate - b.firstTimePassRate;
+    });
 }
 
 // ── WIR Summary Metrics ───────────────────────────────────────
@@ -388,23 +500,29 @@ export function getHistoricalScoresForProjects(projectIds: string[]) {
 // ── Needs Attention Alerts ────────────────────────────────────
 export interface Alert {
   id: string;
-  type: 'nc' | 'score' | 'contractor';
+  type: 'nc' | 'score' | 'contractor' | 'wip';
   severity: 'critical' | 'high' | 'medium';
   title: string;
   projectName: string;
   projectId: string;
   detail: string;
   owner: string;
-  linkType: 'nc' | 'wir' | 'contractor' | 'project';
+  linkType: 'nc' | 'wir' | 'contractor' | 'project' | 'wip';
   linkId: string;
   ncId?: string;
   contractorId?: string;
+  actionText: string;
 }
 
-export function getNeedsAttentionAlerts(wirs?: WIR[], ncs?: NC[], weights: ScoreWeights = DEFAULT_WEIGHTS): Alert[] {
+export function getNeedsAttentionAlerts(
+  city?: string,
+  wirs?: WIR[],
+  ncs?: NC[],
+  weights: ScoreWeights = DEFAULT_WEIGHTS
+): Alert[] {
   const activeWIRs = wirs ?? WIR_RECORDS;
   const activeNCs = ncs ?? NC_RECORDS;
-  const alerts: Alert[] = [];
+  let alerts: Alert[] = [];
   const today = new Date();
 
   // 1. Critical NCs overdue
@@ -421,18 +539,39 @@ export function getNeedsAttentionAlerts(wirs?: WIR[], ncs?: NC[], weights: Score
       id: `alert-nc-${nc.id}`,
       type: 'nc',
       severity: nc.severity === 'Critical' ? 'critical' : 'high',
-      title: `${nc.severity} NC overdue`,
+      title: `${nc.severity} NC Overdue (${daysOverdue}d)`,
       projectName: proj?.name ?? '',
       projectId: nc.projectId,
-      detail: `${nc.finding.slice(0, 80)}${nc.finding.length > 80 ? '…' : ''} · ${daysOverdue}d overdue`,
+      detail: `${nc.finding.slice(0, 75)}${nc.finding.length > 75 ? '…' : ''}`,
       owner: contractor?.name ?? nc.owner,
       linkType: 'nc',
       linkId: nc.id,
       ncId: nc.id,
+      actionText: 'Review NC',
     });
   }
 
-  // 2. Projects with significant score drop
+  // 2. WIP Construction Activities significantly delayed
+  const delayedActs = WIP_ACTIVITIES.filter(a => a.status === 'Delayed' || a.status === 'Blocked');
+  for (const act of delayedActs) {
+    const proj = PROJECTS.find(p => p.id === act.projectId);
+    const contractor = CONTRACTORS.find(c => c.id === act.contractorId);
+    alerts.push({
+      id: `alert-wip-${act.id}`,
+      type: 'wip',
+      severity: act.status === 'Blocked' ? 'critical' : 'high',
+      title: `Delayed Milestone: ${act.workPackage.slice(0, 32)}…`,
+      projectName: proj?.name ?? '',
+      projectId: act.projectId,
+      detail: act.blockingReason || `${Math.abs(act.varianceDays)} days behind baseline schedule`,
+      owner: contractor?.name ?? act.projectManager,
+      linkType: 'wip',
+      linkId: act.projectId,
+      actionText: 'Inspect Floor',
+    });
+  }
+
+  // 3. Projects with significant score drop
   const metrics = getAllProjectMetrics(weights, activeWIRs, activeNCs);
   for (const m of metrics) {
     if (m.scoreDelta !== null && m.scoreDelta <= -6) {
@@ -440,38 +579,50 @@ export function getNeedsAttentionAlerts(wirs?: WIR[], ncs?: NC[], weights: Score
         id: `alert-score-${m.project.id}`,
         type: 'score',
         severity: m.qualityScore < 60 ? 'critical' : 'high',
-        title: 'Quality Score declining',
+        title: 'Quality Score Declining',
         projectName: m.project.name,
         projectId: m.project.id,
-        detail: `Score dropped ${Math.abs(m.scoreDelta)} points vs previous period (now ${m.qualityScore}/100)`,
-        owner: 'Project Team',
+        detail: `Dropped ${Math.abs(m.scoreDelta)} points vs previous month (${m.qualityScore}/100)`,
+        owner: m.project.projectManager,
         linkType: 'project',
         linkId: m.project.id,
+        actionText: 'View Project',
       });
     }
   }
 
-  // 3. Contractors with poor first-time pass rate
+  // 4. Contractors with low first-time pass rate
   const contractorMetrics = getAllContractorMetrics(activeWIRs, activeNCs);
   for (const cm of contractorMetrics) {
-    if (cm.firstTimePassRate < 55 && cm.totalWIRs >= 3) {
+    if (cm.firstTimePassRate < 50 && cm.totalWIRs >= 3) {
       alerts.push({
         id: `alert-contractor-${cm.contractor.id}`,
         type: 'contractor',
         severity: cm.firstTimePassRate < 40 ? 'critical' : 'high',
-        title: 'Low first-time pass rate',
+        title: 'Contractor Pass Rate Declining',
         projectName: cm.projects.map(pid => PROJECTS.find(p => p.id === pid)?.name ?? '').join(', '),
         projectId: cm.projects[0],
-        detail: `${cm.contractor.name} — ${cm.firstTimePassRate}% first-time pass rate across ${cm.projects.length} project(s)`,
+        detail: `${cm.contractor.name} at ${cm.firstTimePassRate}% first-time pass rate across ${cm.projects.length} sites`,
         owner: cm.contractor.name,
         linkType: 'contractor',
         linkId: cm.contractor.id,
         contractorId: cm.contractor.id,
+        actionText: 'Audit Contractor',
       });
     }
   }
 
-  // Sort by severity
+  // Filter to city if specified
+  if (city && city !== 'All locations' && city !== 'All Locations') {
+    alerts = alerts.filter(a => {
+      const proj = PROJECTS.find(p => p.id === a.projectId);
+      if (!proj) return false;
+      if (city.toLowerCase() === 'mumbai') return proj.city === 'Mumbai' || proj.city === 'Navi Mumbai' || proj.city === 'Thane';
+      return proj.city.toLowerCase() === city.toLowerCase();
+    });
+  }
+
+  // Sort by severity (critical first)
   const order = { critical: 0, high: 1, medium: 2 };
-  return alerts.sort((a, b) => order[a.severity] - order[b.severity]);
+  return alerts.sort((a, b) => order[a.severity] - order[b.severity]).slice(0, 5);
 }

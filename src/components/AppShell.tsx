@@ -1,556 +1,627 @@
 // ============================================================
-// APP SHELL — Redesigned with Fundio Visual Inspiration
-// Slim top bar, dark active pill tab, restrained icons & controls
+// APP SHELL — Shared Application Shell & Horizontal Navigation
+// Linear-inspired visual discipline: crisp borders, neutral surfaces,
+// compact header, horizontal navigation, global geographic & role selectors
 // ============================================================
 
 import React, { useState } from 'react';
 import {
   Search, Download, RefreshCcw, ChevronDown, Check,
   PlayCircle, X, ChevronRight, Sparkles, Bell, Menu,
-  LayoutDashboard, ClipboardCheck, AlertTriangle,
-  BarChart3, Users, Building2
+  Sliders, Shield, SlidersHorizontal, CheckCircle2,
+  Calendar, MapPin, User, LayoutDashboard, Construction,
+  ClipboardCheck, Award, AlertTriangle, Users
 } from 'lucide-react';
 import clsx from 'clsx';
-import { useApp } from '../store/appStore';
+import { useApp, type TabKey, type UserRole } from '../store/appStore';
 import { PROJECTS, CONTRACTORS } from '../data/seedData';
-import { calcQualityScore } from '../data/calculations';
+import { AdminModal } from './AdminModal';
+import { WeightsConfigModal } from './WeightsConfigModal';
+import { ActivityDetailDrawer } from './ActivityDetailDrawer';
+import { AuditDetailDrawer } from './AuditDetailDrawer';
 
-const NAV_ITEMS = [
-  { key: 'portfolio' as const, label: 'Portfolio', icon: LayoutDashboard },
-  { key: 'wir' as const, label: 'WIR Inspections', icon: ClipboardCheck },
-  { key: 'nc' as const, label: 'Non-Compliance', icon: AlertTriangle },
-  { key: 'quality' as const, label: 'Quality Score', icon: BarChart3 },
-  { key: 'contractors' as const, label: 'Contractors', icon: Users },
+const NAV_ITEMS: { key: TabKey; label: string; icon: React.ComponentType<{ size: number; className?: string }> }[] = [
+  { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { key: 'wip', label: 'WIP — Work in Progress', icon: Construction },
+  { key: 'wir', label: 'WIR Inspections', icon: ClipboardCheck },
+  { key: 'quality', label: 'Audit & Quality', icon: Award },
+  { key: 'nc', label: 'Non-Compliance', icon: AlertTriangle },
+  { key: 'contractors', label: 'Contractors', icon: Users },
 ];
 
-const DEMO_STEPS = [
-  {
-    step: 1,
-    title: 'Open Portfolio Overview',
-    desc: 'The executive home screen surfaces portfolio-wide health in under 60 seconds.',
-    actionName: 'View Portfolio',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.resetFilters();
-      app.setTab('portfolio');
-      app.selectProject(null);
-    },
-  },
-  {
-    step: 2,
-    title: 'Spot Projects in Trouble',
-    desc: 'Default sort highlights worst performers first: Riverstone Towers (Gurugram) is Critical at 42/100.',
-    actionName: 'Highlight Critical Project',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.setTab('portfolio');
-      app.selectProject(null);
-    },
-  },
-  {
-    step: 3,
-    title: 'Inspect Project Breakdown',
-    desc: 'Open Riverstone Towers detail drawer to examine why it is struggling.',
-    actionName: 'Open Riverstone Towers',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.setTab('portfolio');
-      app.selectProject('P004');
-    },
-  },
-  {
-    step: 4,
-    title: 'Deconstruct Score Components',
-    desc: 'Riverstone Towers has low NC Health (48/100) and poor Latest Audit (42/100). Concrete cube test failure flagged.',
-    actionName: 'Review Quality Breakdown',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.setTab('portfolio');
-      app.selectProject('P004');
-    },
-  },
-  {
-    step: 5,
-    title: 'Drill into Overdue Critical NC',
-    desc: 'Open NC-0001: Concrete cube test failure (24.8 MPa vs 30 MPa M30 required), open 39 days.',
-    actionName: 'Open NC-0001 Drawer',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.selectProject(null);
-      app.setTab('nc');
-      app.selectNC('NC-0001');
-    },
-  },
-  {
-    step: 6,
-    title: 'Inspect Contractor Ownership',
-    desc: 'NC-0001 is owned by contractor "ABC Civil Works". Examine site notes and audit trail.',
-    actionName: 'Review NC Audit Trail',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.setTab('nc');
-      app.selectNC('NC-0001');
-    },
-  },
-  {
-    step: 7,
-    title: 'Check Contractor Accountability',
-    desc: 'Navigate to Contractors tab to see if ABC Civil Works has quality issues across multiple projects.',
-    actionName: 'Open Contractors',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.selectNC(null);
-      app.setTab('contractors');
-      app.selectContractor(null);
-    },
-  },
-  {
-    step: 8,
-    title: 'Analyse ABC Civil Works Cross-Project',
-    desc: 'Open ABC Civil Works drawer: First-time pass rate is only 43%, with 4 critical NCs spanning 2 projects.',
-    actionName: 'Inspect ABC Civil Works',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.setTab('contractors');
-      app.selectContractor('C001');
-    },
-  },
-  {
-    step: 9,
-    title: 'Inspect WIR Operational Bottlenecks',
-    desc: 'Navigate to WIR tab to inspect recent inspection rejections and SLA breaches.',
-    actionName: 'Open WIR Tab',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.selectContractor(null);
-      app.setTab('wir');
-      app.selectWIR(null);
-    },
-  },
-  {
-    step: 10,
-    title: 'Examine Rejected Inspection WIR-0021',
-    desc: 'WIR-0021: Column Concreting 5th Floor rejected due to cube strength failure and visible honeycombing.',
-    actionName: 'Open WIR-0021',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.setTab('wir');
-      app.selectWIR('WIR-0021');
-    },
-  },
-  {
-    step: 11,
-    title: 'Advance Workflow State',
-    desc: 'Change WIR or NC state: e.g. Open NC-0002 (Honeycombing) and transition from Rectification to Evidence Submitted.',
-    actionName: 'Open NC-0002 for Action',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.selectWIR(null);
-      app.setTab('nc');
-      app.selectNC('NC-0002');
-    },
-  },
-  {
-    step: 12,
-    title: 'Return to Portfolio: Real-Time Score Update',
-    desc: 'Portfolio Quality Scores, Pass Rates and KPI strip automatically recompute from the single source of truth.',
-    actionName: 'Verify Portfolio Update',
-    run: (app: ReturnType<typeof useApp>) => {
-      app.selectNC(null);
-      app.resetFilters();
-      app.setTab('portfolio');
-    },
-  },
+const CITIES = [
+  'All locations',
+  'Mumbai',
+  'Thane',
+  'Navi Mumbai',
+  'Pune',
+  'Bengaluru',
+  'Hyderabad',
+  'Gurugram',
+];
+
+const REPORTING_PERIODS = [
+  'Q3 FY25 (Current)',
+  'Last 30 Days',
+  'Last 90 Days',
+  'FY 2025-26',
+];
+
+const USER_ROLES: { role: UserRole; title: string; desc: string }[] = [
+  { role: 'CXO', title: 'CEO / CXO', desc: 'Portfolio-wide risks, RAG status & high-level health' },
+  { role: 'ProjectsHead', title: 'Projects Head', desc: 'Construction milestones, delayed towers & schedule variance' },
+  { role: 'ProjectManager', title: 'Project Manager', desc: 'Assigned site activities, contractor handoffs & blockers' },
+  { role: 'QualityInspector', title: 'Quality Inspector', desc: 'Assigned WIRs, site defect inspections & verification' },
+  { role: 'Contractor', title: 'Contractor', desc: 'Contractor-specific activities, re-inspection & corrective evidence' },
+  { role: 'Admin', title: 'System Administrator', desc: 'User & role permissions, project allocation & security matrix' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const app = useApp();
-  const { state, setTab, setFilter, resetDemo } = app;
+  const {
+    state,
+    setTab,
+    setUserRole,
+    setFilter,
+    resetFilters,
+    resetDemo,
+    selectActivity,
+    selectAudit,
+    setWeightsModalOpen,
+  } = useApp();
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [tourOpen, setTourOpen] = useState(false);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Dynamic counts for left nav badges
-  const critNCs = state.ncs.filter(n => n.severity === 'Critical' && n.status !== 'Closed').length;
-  const overdueWIRs = state.wirs.filter(w => w.slaBreach && w.status !== 'Approved').length;
+  // Tour state
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
 
-  function triggerToast(msg: string) {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  }
+  const triggerToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
 
-  // Handle Export CSV
-  function handleExport() {
-    let csvContent = '';
-    let filename = '';
+  // Badges
+  const openCritNCs = state.ncs.filter(n => n.severity === 'Critical' && n.status !== 'Closed').length;
+  const overdueWIRs = state.wirs.filter(w => w.slaBreach && (w.status === 'Submitted' || w.status === 'Awaiting Review')).length;
+  const delayedActs = state.wipActivities.filter(a => a.status === 'Delayed' || a.status === 'Blocked').length;
 
-    if (state.activeTab === 'portfolio') {
-      csvContent = 'Project,City,Region,Stage,QualityScore,FirstTimePassRate,OpenNCs,OverdueWIRs\n' +
-        PROJECTS.map(p => {
-          const bd = calcQualityScore(p.id, state.weights, state.wirs, state.ncs);
-          const pWIRs = state.wirs.filter(w => w.projectId === p.id);
-          const pNCs = state.ncs.filter(n => n.projectId === p.id && n.status !== 'Closed');
-          const pOverdue = pWIRs.filter(w => w.slaBreach && w.status !== 'Approved');
-          return `"${p.name}","${p.city}","${p.region}","${p.stage}",${bd.finalScore},${bd.wirComponent}%,${pNCs.length},${pOverdue.length}`;
-        }).join('\n');
-      filename = 'bombaydc-portfolio-quality-report.csv';
+  // Handle CSV export of the active view
+  const handleExportCSV = () => {
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    const timestamp = new Date().toISOString().slice(0, 10);
+
+    if (state.activeTab === 'overview') {
+      csvContent += 'Project ID,Project Name,City,Stage,Progress %,Target %,Quality Score\n';
+      PROJECTS.forEach(p => {
+        csvContent += `"${p.id}","${p.name}","${p.city}","${p.stage}","${p.progressPercentage}%","${p.targetProgressPercentage}%","${p.progressPercentage}"\n`;
+      });
+    } else if (state.activeTab === 'wip') {
+      csvContent += 'Activity ID,Project,Tower,Floor,Work Package,Status,Actual %,Planned %,Variance Days\n';
+      state.wipActivities.forEach(a => {
+        csvContent += `"${a.id}","${a.projectId}","${a.tower}","${a.floor}","${a.workPackage}","${a.status}","${a.actualProgress}%","${a.plannedProgress}%","${a.varianceDays}"\n`;
+      });
     } else if (state.activeTab === 'wir') {
-      csvContent = 'WIR_ID,Project,Tower,Activity,Contractor,Submitted,Reviewer,Status,DaysAwaiting,FirstPassResult\n' +
-        state.wirs.map(w => {
-          const proj = PROJECTS.find(p => p.id === w.projectId)?.name ?? '';
-          const cont = CONTRACTORS.find(c => c.id === w.contractorId)?.name ?? '';
-          return `"${w.id}","${proj}","${w.tower}","${w.activity}","${cont}","${w.submittedDate}","${w.reviewer}","${w.status}",${w.daysAwaiting},"${w.firstPassResult}"`;
-        }).join('\n');
-      filename = 'bombaydc-wir-inspections.csv';
+      csvContent += 'WIR ID,Project,Tower,Floor,Activity,Contractor,Reviewer,Status,First Pass\n';
+      state.wirs.forEach(w => {
+        csvContent += `"${w.id}","${w.projectId}","${w.tower}","${w.floor || ''}","${w.activity}","${w.contractorId}","${w.reviewer}","${w.status}","${w.firstPassResult}"\n`;
+      });
     } else if (state.activeTab === 'nc') {
-      csvContent = 'NC_ID,Project,Tower,Finding,Severity,Contractor,DateRaised,Age,DueDate,Status,IsRepeat\n' +
-        state.ncs.map(n => {
-          const proj = PROJECTS.find(p => p.id === n.projectId)?.name ?? '';
-          const cont = CONTRACTORS.find(c => c.id === n.contractorId)?.name ?? '';
-          return `"${n.id}","${proj}","${n.tower}","${n.finding.replace(/"/g, '""')}","${n.severity}","${cont}","${n.dateRaised}",${n.age},"${n.dueDate}","${n.status}",${n.isRepeat}`;
-        }).join('\n');
-      filename = 'bombaydc-non-compliance-register.csv';
-    } else if (state.activeTab === 'quality') {
-      csvContent = 'Project,QualityScore,WIR_Component,NC_Component,Audit_Component\n' +
-        PROJECTS.map(p => {
-          const bd = calcQualityScore(p.id, state.weights, state.wirs, state.ncs);
-          return `"${p.name}",${bd.finalScore},${bd.wirComponent},${bd.ncComponent},${bd.auditComponent ?? 'N/A'}`;
-        }).join('\n');
-      filename = 'bombaydc-quality-scores.csv';
+      csvContent += 'NC ID,Project,Tower,Category,Severity,Status,Date Raised,Due Date,Finding\n';
+      state.ncs.forEach(n => {
+        csvContent += `"${n.id}","${n.projectId}","${n.tower}","${n.category}","${n.severity}","${n.status}","${n.dateRaised}","${n.dueDate}","${n.finding.replace(/"/g, '""')}"\n`;
+      });
     } else {
-      csvContent = 'Contractor,Trade,WIRs,FirstTimePassRate,OpenNCs\n' +
-        CONTRACTORS.map(c => {
-          const cW = state.wirs.filter(w => w.contractorId === c.id);
-          const cN = state.ncs.filter(n => n.contractorId === c.id && n.status !== 'Closed');
-          const pass = cW.filter(w => w.firstPassResult === 'Pass').length;
-          const rate = cW.length > 0 ? Math.round((pass / cW.length) * 100) : 0;
-          return `"${c.name}","${c.type}",${cW.length},${rate}%,${cN.length}`;
-        }).join('\n');
-      filename = 'bombaydc-contractor-quality-rankings.csv';
+      csvContent += 'Contractor ID,Name,Trade,Projects\n';
+      CONTRACTORS.forEach(c => {
+        csvContent += `"${c.id}","${c.name}","${c.type}","${c.projects.join('; ')}"\n`;
+      });
     }
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `BombayDC_${state.activeTab}_${timestamp}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    triggerToast(`Exported ${filename}`);
-  }
 
-  const currentStep = DEMO_STEPS[currentStepIndex];
+    triggerToast(`Exported ${state.activeTab.toUpperCase()} data to CSV`);
+  };
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7] flex text-[#1E293B]">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#0F172A] text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 border border-slate-700/60 animate-in fade-in slide-in-from-top-2">
-          <Check size={14} className="text-[#10B981]" />
-          <span>{toastMessage}</span>
+    <div className="min-h-screen bg-[#F7F8FA] text-[#20252D] font-sans antialiased flex flex-col">
+      {/* Toast Notification Container */}
+      {toastMsg && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-[#20252D] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl animate-in slide-in-from-top-2 duration-150">
+          <CheckCircle2 size={15} className="text-emerald-400" />
+          <span>{toastMsg}</span>
         </div>
       )}
 
-      {/* Mobile Drawer Backdrop */}
-      {mobileMenuOpen && (
-        <div
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden"
-        />
-      )}
-
       {/* ============================================================
-          LEFT VERTICAL NAVIGATION SIDEBAR (Linear / Fundio / Executive Style)
+          TOP APPLICATION HEADER (Slim Executive Shell)
           ============================================================ */}
-      <aside
-        className={clsx(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-[#E2E8F0] flex flex-col justify-between transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 lg:h-screen lg:sticky lg:top-0 shadow-lg lg:shadow-none flex-shrink-0',
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-        <div className="flex flex-col flex-1 overflow-y-auto">
-          {/* Logo / Brand Header */}
-          <div className="h-16 px-5 border-b border-[#F1F5F9] flex items-center justify-between">
-            <div
-              onClick={() => {
-                setTab('portfolio');
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-3 cursor-pointer group"
-            >
-              <img
-                src="/logo.png"
-                alt="BombayDC Construction Quality"
-                className="h-9 w-auto object-contain transition-transform group-hover:scale-[1.02] mix-blend-multiply"
-              />
-            </div>
-            {/* Close button for mobile */}
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden text-[#94A3B8] hover:text-[#0F172A] p-1.5 rounded-lg hover:bg-slate-100"
-            >
-              <X size={18} />
-            </button>
+      <header className="sticky top-0 z-40 bg-white border-b border-[#E5E7EB] h-14 px-6 flex items-center justify-between shadow-2xs">
+        {/* Left: Brand & Product Name */}
+        <div className="flex items-center gap-5">
+          <div
+            onClick={() => setTab('overview')}
+            className="flex items-center gap-2.5 cursor-pointer group"
+          >
+            <img
+              src="/logo.png"
+              alt="BombayDC"
+              className="h-7 w-auto object-contain transition-transform group-hover:scale-[1.02] mix-blend-multiply"
+            />
+            <div className="h-4 w-px bg-[#E5E7EB] mx-1 hidden sm:block" />
+            <span className="text-xs font-bold tracking-tight text-[#20252D] hidden sm:inline whitespace-nowrap">
+              Construction Portfolio
+            </span>
           </div>
 
-          {/* Vertical Navigation Links */}
-          <div className="p-3 space-y-3">
-            <nav className="space-y-1">
-              {NAV_ITEMS.map(item => {
-                const active = state.activeTab === item.key;
-                const Icon = item.icon;
-                const badge = item.key === 'nc' && critNCs > 0
-                  ? critNCs
-                  : item.key === 'wir' && overdueWIRs > 0
-                  ? overdueWIRs
-                  : null;
-                const badgeTitle = item.key === 'nc'
-                  ? `${critNCs} Critical Non-Compliances`
-                  : item.key === 'wir'
-                  ? `${overdueWIRs} Overdue Inspections`
-                  : '';
+          {/* DEMO DATA Indicator Pill */}
+          <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#697586] border border-slate-200">
+            Demo Data
+          </span>
 
-                return (
+          {/* Reporting Period Selector */}
+          <div className="relative hidden lg:block">
+            <button
+              onClick={() => {
+                setPeriodDropdownOpen(!periodDropdownOpen);
+                setCityDropdownOpen(false);
+                setRoleDropdownOpen(false);
+              }}
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-[#E5E7EB] bg-[#F7F8FA] hover:bg-slate-100 text-xs font-semibold text-[#20252D] transition-colors"
+            >
+              <Calendar size={13} className="text-[#697586]" />
+              <span>{state.filters.reportingPeriod || 'Q3 FY25'}</span>
+              <ChevronDown size={12} className="text-[#697586]" />
+            </button>
+
+            {periodDropdownOpen && (
+              <div className="absolute left-0 mt-1.5 w-48 bg-white border border-[#E5E7EB] rounded-xl shadow-lg p-1.5 z-50 animate-in fade-in">
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Reporting Scope
+                </div>
+                {REPORTING_PERIODS.map(p => (
                   <button
-                    key={item.key}
+                    key={p}
                     onClick={() => {
-                      setTab(item.key);
-                      setMobileMenuOpen(false);
+                      setFilter('reportingPeriod', p.split(' ')[0]);
+                      setPeriodDropdownOpen(false);
+                      triggerToast(`Period set to ${p}`);
                     }}
-                    className={clsx(
-                      'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150',
-                      active
-                        ? 'bg-[#18181B] text-white shadow-xs'
-                        : 'text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100/80 font-semibold'
-                    )}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between ${
+                      state.filters.reportingPeriod === p.split(' ')[0]
+                        ? 'bg-blue-50 text-blue-700 font-bold'
+                        : 'text-[#20252D] hover:bg-slate-50'
+                    }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon size={16} className={clsx('flex-shrink-0', active ? 'text-white' : 'text-[#94A3B8]')} />
-                      <span className="whitespace-nowrap">{item.label}</span>
-                    </div>
-                    {badge !== null && (
-                      <span
-                        title={badgeTitle}
-                        className={clsx(
-                          'text-[10px] min-w-[20px] h-5 px-1.5 rounded-full font-black inline-flex items-center justify-center leading-none flex-shrink-0 shadow-2xs',
-                          active
-                            ? 'bg-white/20 text-white'
-                            : item.key === 'nc'
-                            ? 'bg-rose-100 text-[#9F1239] border border-rose-300'
-                            : 'bg-amber-100 text-[#B45309] border border-amber-300'
-                        )}
-                      >
-                        {badge}
-                      </span>
-                    )}
+                    <span>{p}</span>
+                    {state.filters.reportingPeriod === p.split(' ')[0] && <Check size={13} />}
                   </button>
-                );
-              })}
-            </nav>
-
-            {/* Subtle Divider */}
-            <div className="border-t border-[#F1F5F9] my-2" />
-
-            {/* Executive Quick Actions */}
-            <div className="space-y-1">
-              <button
-                onClick={() => {
-                  handleExport();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-slate-100/80 transition-colors"
-              >
-                <Download size={15} className="text-[#94A3B8] flex-shrink-0" />
-                <span className="whitespace-nowrap">Export Quality CSV</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setTourOpen(!tourOpen);
-                  setMobileMenuOpen(false);
-                }}
-                className={clsx(
-                  'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border',
-                  tourOpen
-                    ? 'bg-[#18181B] text-white border-transparent'
-                    : 'bg-blue-50/60 text-[#1E3A8A] border-blue-200/80 hover:bg-blue-100/70'
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles size={14} className={tourOpen ? 'text-amber-300' : 'text-[#315EFB]'} />
-                  <span className="whitespace-nowrap">Executive Tour</span>
-                </div>
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-extrabold bg-blue-200/60 text-blue-900 leading-none">
-                  {currentStepIndex + 1}/12
-                </span>
-              </button>
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Sidebar Footer: User Profile & Demo Reset */}
-        <div className="p-3 border-t border-[#F1F5F9] bg-[#FAFAFA]">
-          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#E2E8F0] shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0 pr-1">
-              <div className="w-8 h-8 rounded-lg bg-[#18181B] text-white flex items-center justify-center text-xs font-extrabold flex-shrink-0">
-                QH
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-[#0F172A] truncate leading-tight">Quality Head</p>
-              </div>
-            </div>
+          {/* Geographic Scope Selector */}
+          <div className="relative">
             <button
               onClick={() => {
-                resetDemo();
-                triggerToast('Demo state reset to original seed data');
+                setCityDropdownOpen(!cityDropdownOpen);
+                setPeriodDropdownOpen(false);
+                setRoleDropdownOpen(false);
               }}
-              className="text-[#94A3B8] hover:text-[#0F172A] transition-colors p-1.5 rounded-lg hover:bg-slate-100 flex-shrink-0"
-              title="Reset demo data"
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 text-xs font-bold text-blue-900 transition-colors"
             >
-              <RefreshCcw size={14} />
+              <MapPin size={13} className="text-blue-600" />
+              <span>{state.filters.city || 'All locations'}</span>
+              <ChevronDown size={12} className="text-blue-600" />
             </button>
+
+            {cityDropdownOpen && (
+              <div className="absolute left-0 mt-1.5 w-52 bg-white border border-[#E5E7EB] rounded-xl shadow-lg p-1.5 z-50 animate-in fade-in">
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Geographic Scope
+                </div>
+                {CITIES.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      setFilter('city', c);
+                      setCityDropdownOpen(false);
+                      triggerToast(`Portfolio scoped to ${c}`);
+                    }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between ${
+                      state.filters.city === c
+                        ? 'bg-blue-600 text-white font-bold'
+                        : 'text-[#20252D] hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{c}</span>
+                    {state.filters.city === c && <Check size={13} className="text-white" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </aside>
 
-      {/* ============================================================
-          MAIN CONTENT COLUMN
-          ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        {/* Slim Executive Top Bar with Search & Alerts */}
-        <header className="sticky top-0 z-30 h-14 bg-white/85 backdrop-blur-md border-b border-black/[0.06] flex items-center justify-between px-6 sm:px-8">
-          <div className="flex items-center gap-3">
-            {/* Mobile Hamburger Toggle */}
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] hover:text-[#0F172A] shadow-2xs"
-              title="Open Navigation Menu"
-            >
-              <Menu size={16} />
-            </button>
+        {/* Right Header Actions */}
+        <div className="flex items-center gap-2.5">
+          {/* Quick Search */}
+          <div className="relative">
+            {searchOpen ? (
+              <div className="flex items-center border border-slate-300 rounded-xl px-2.5 py-1 bg-white shadow-xs">
+                <Search size={13} className="text-slate-400 mr-2" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={state.filters.search}
+                  onChange={e => setFilter('search', e.target.value)}
+                  placeholder="Search projects, IDs, contractors…"
+                  className="w-44 text-xs outline-none text-[#20252D] placeholder:text-slate-400"
+                />
+                <button
+                  onClick={() => setSearchOpen(false)}
+                  className="text-slate-400 hover:text-slate-700 ml-1"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="h-8 px-2.5 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 flex items-center gap-1.5 text-xs text-[#697586] hover:text-[#20252D] transition-colors"
+                title="Search records"
+              >
+                <Search size={13} />
+                <span className="hidden md:inline text-[11px]">Search…</span>
+              </button>
+            )}
           </div>
 
-          {/* Right Header Actions */}
-          <div className="flex items-center gap-3">
-            {/* Search Input */}
-            <div className="relative">
-              {searchOpen ? (
-                <div className="flex items-center border border-[#CBD5E1] rounded-xl px-3 py-1.5 bg-white shadow-xs">
-                  <Search size={14} className="text-[#94A3B8] mr-2" />
-                  <input
-                    type="text"
-                    autoFocus
-                    value={state.filters.search}
-                    onChange={e => setFilter('search', e.target.value)}
-                    placeholder="Search projects, IDs, contractors…"
-                    className="w-48 text-xs text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
-                  />
-                  <button onClick={() => setSearchOpen(false)} className="text-[#94A3B8] hover:text-[#0F172A] ml-1.5">
-                    <X size={13} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setSearchOpen(true)}
-                  className="h-9 px-3 rounded-xl border border-[#E2E8F0] bg-white flex items-center gap-2 text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50 transition-colors shadow-2xs text-xs font-medium"
-                  title="Search"
-                >
-                  <Search size={14} className="text-[#94A3B8]" />
-                  <span className="hidden md:inline text-[11px] text-[#94A3B8]">Quick Search…</span>
-                </button>
-              )}
-            </div>
+          {/* Export CSV Action */}
+          <button
+            onClick={handleExportCSV}
+            className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 text-xs font-semibold text-[#20252D] transition-colors"
+            title="Export view to CSV"
+          >
+            <Download size={13} className="text-[#697586]" />
+            <span>Export CSV</span>
+          </button>
 
-            {/* Quick Export Button */}
+          {/* Notifications Bell */}
+          <div className="relative">
             <button
-              onClick={handleExport}
-              className="hidden sm:flex items-center gap-1.5 h-9 px-3 rounded-xl border border-[#CBD5E1] bg-white text-xs font-bold text-[#1E293B] hover:bg-slate-50 transition-colors shadow-2xs"
-              title="Export Current View to CSV"
-            >
-              <Download size={13} className="text-[#64748B]" />
-              <span>Export CSV</span>
-            </button>
-
-            {/* Notifications Bell */}
-            <button
-              onClick={() => triggerToast('No pending critical notifications')}
-              className="relative w-9 h-9 rounded-xl border border-[#E2E8F0] bg-white flex items-center justify-center text-[#64748B] hover:text-[#0F172A] hover:bg-slate-50 transition-colors shadow-2xs"
+              onClick={() => setNotifOpen(!notifOpen)}
+              className="relative w-8 h-8 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 flex items-center justify-center text-[#697586] hover:text-[#20252D] transition-colors"
               title="Notifications"
             >
-              <Bell size={15} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-[#EF4444] rounded-full ring-2 ring-white" />
+              <Bell size={14} />
+              {(openCritNCs > 0 || overdueWIRs > 0) && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#C63F43] rounded-full ring-2 ring-white" />
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-white border border-[#E5E7EB] rounded-2xl shadow-xl p-3 z-50 animate-in fade-in">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-900">Urgent Portfolio Alerts</span>
+                  <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">
+                    {openCritNCs + overdueWIRs} Urgent
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto text-xs">
+                  {openCritNCs > 0 && (
+                    <div
+                      onClick={() => {
+                        setTab('nc');
+                        setNotifOpen(false);
+                      }}
+                      className="p-2 rounded-lg bg-rose-50/70 border border-rose-200/80 cursor-pointer hover:bg-rose-100/70 transition-colors"
+                    >
+                      <p className="font-bold text-rose-900">
+                        {openCritNCs} Critical Non-Compliances Open
+                      </p>
+                      <p className="text-[11px] text-rose-700 mt-0.5">
+                        Riverstone Towers: Cube test failure & column honeycombing
+                      </p>
+                    </div>
+                  )}
+                  {overdueWIRs > 0 && (
+                    <div
+                      onClick={() => {
+                        setTab('wir');
+                        setNotifOpen(false);
+                      }}
+                      className="p-2 rounded-lg bg-amber-50/70 border border-amber-200/80 cursor-pointer hover:bg-amber-100/70 transition-colors"
+                    >
+                      <p className="font-bold text-amber-900">
+                        {overdueWIRs} WIRs Awaiting Review &gt; 7d SLA
+                      </p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">
+                        Inspection turnaround bottleneck holding up concrete pours
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User Role Selector */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setRoleDropdownOpen(!roleDropdownOpen);
+                setCityDropdownOpen(false);
+                setPeriodDropdownOpen(false);
+              }}
+              className="flex items-center gap-1.5 h-8 pl-1.5 pr-2.5 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-[#20252D] transition-colors"
+            >
+              <div className="w-5 h-5 rounded-md bg-[#20252D] text-white flex items-center justify-center text-[10px] font-black">
+                {state.userRole.slice(0, 2).toUpperCase()}
+              </div>
+              <span className="hidden sm:inline">
+                {state.userRole === 'ProjectsHead' ? 'Projects Head' : state.userRole === 'ProjectManager' ? 'Project Mgr' : state.userRole === 'QualityInspector' ? 'Quality Insp' : state.userRole}
+              </span>
+              <ChevronDown size={11} className="text-[#697586]" />
+            </button>
+
+            {roleDropdownOpen && (
+              <div className="absolute right-0 mt-1.5 w-64 bg-white border border-[#E5E7EB] rounded-2xl shadow-xl p-2 z-50 animate-in fade-in">
+                <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                  <p className="text-[11px] font-bold text-slate-900">Prototype Role Simulator</p>
+                  <p className="text-[10px] text-slate-500">Switch user role to observe different perspective emphasis</p>
+                </div>
+                <div className="space-y-1">
+                  {USER_ROLES.map(r => (
+                    <button
+                      key={r.role}
+                      onClick={() => {
+                        setUserRole(r.role);
+                        setRoleDropdownOpen(false);
+                        triggerToast(`Switched view to ${r.title}`);
+                      }}
+                      className={`w-full text-left p-2 rounded-xl text-xs transition-colors flex items-start justify-between ${
+                        state.userRole === r.role
+                          ? 'bg-blue-50 text-blue-900 font-bold'
+                          : 'text-[#20252D] hover:bg-slate-50'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span>{r.title}</span>
+                          {state.userRole === r.role && <Check size={13} className="text-blue-600" />}
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-normal mt-0.5 leading-snug">
+                          {r.desc}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Reset Demo Button */}
+          <button
+            onClick={() => {
+              resetDemo();
+              triggerToast('Demo reset to initial seed data');
+            }}
+            className="p-1.5 rounded-lg text-[#697586] hover:text-[#20252D] hover:bg-slate-100 transition-colors"
+            title="Reset demo data"
+          >
+            <RefreshCcw size={14} />
+          </button>
+        </div>
+      </header>
+
+      {/* ============================================================
+          HORIZONTAL NAVIGATION BAR (Linear Style)
+          ============================================================ */}
+      <nav className="bg-white border-b border-[#E5E7EB] px-6 flex items-center justify-between overflow-x-auto scrollbar-none z-30">
+        <div className="flex items-center gap-1">
+          {NAV_ITEMS.map(item => {
+            const active = state.activeTab === item.key || (item.key === 'overview' && state.activeTab === 'portfolio');
+            const Icon = item.icon;
+
+            const badge =
+              item.key === 'nc' && openCritNCs > 0
+                ? openCritNCs
+                : item.key === 'wir' && overdueWIRs > 0
+                ? overdueWIRs
+                : item.key === 'wip' && delayedActs > 0
+                ? delayedActs
+                : null;
+
+            return (
+              <button
+                key={item.key}
+                onClick={() => setTab(item.key)}
+                className={clsx(
+                  'relative h-11 px-3.5 flex items-center gap-2 text-xs font-semibold whitespace-nowrap transition-all border-b-2',
+                  active
+                    ? 'border-[#20252D] text-[#20252D] font-bold'
+                    : 'border-transparent text-[#697586] hover:text-[#20252D] hover:border-slate-300'
+                )}
+              >
+                <Icon size={14} className={active ? 'text-[#20252D]' : 'text-[#697586]'} />
+                <span>{item.label}</span>
+
+                {badge !== null && (
+                  <span
+                    className={clsx(
+                      'text-[10px] px-1.5 py-0.2 rounded-full font-black leading-none ml-1',
+                      active
+                        ? 'bg-[#20252D] text-white'
+                        : item.key === 'nc'
+                        ? 'bg-rose-100 text-[#C63F43]'
+                        : item.key === 'wir'
+                        ? 'bg-amber-100 text-[#B7791F]'
+                        : 'bg-blue-100 text-[#315EFB]'
+                    )}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right side nav helpers: Weights Config & Executive Tour */}
+        <div className="hidden md:flex items-center gap-2 pl-4">
+          <button
+            onClick={() => setWeightsModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-[#697586] hover:text-[#20252D] hover:bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-colors font-medium"
+            title="Configure Quality Score Weights"
+          >
+            <SlidersHorizontal size={13} />
+            <span>Score Weights</span>
+          </button>
+
+          <button
+            onClick={() => setTourOpen(!tourOpen)}
+            className={clsx(
+              'flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-all',
+              tourOpen
+                ? 'bg-[#20252D] text-white border-transparent'
+                : 'bg-blue-50 text-[#315EFB] border-blue-200 hover:bg-blue-100'
+            )}
+          >
+            <Sparkles size={13} className={tourOpen ? 'text-amber-300' : 'text-blue-600'} />
+            <span>Executive Pitch Tour</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* ============================================================
+          FLOATING EXECUTIVE PITCH TOUR (Optional interactive guide)
+          ============================================================ */}
+      {tourOpen && (
+        <div className="fixed bottom-6 right-8 z-50 w-96 bg-white border border-slate-300 rounded-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-md bg-[#20252D] text-white flex items-center justify-center text-[10px] font-bold">
+                {tourStep + 1}
+              </span>
+              <span className="text-xs font-bold text-[#20252D]">Executive Pitch Narrative</span>
+            </div>
+            <button onClick={() => setTourOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <X size={15} />
             </button>
           </div>
-        </header>
 
-        {/* Website Dimming Backdrop when Tour is Active */}
-        {tourOpen && (
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-[80] transition-opacity animate-in fade-in duration-200 pointer-events-none"
-          />
-        )}
-
-        {/* Floating Interactive Pitch Walkthrough Guide */}
-        {tourOpen && (() => {
-          const isDrawerOpen = Boolean(state.selectedProjectId || state.selectedNCId || state.selectedWIRId || state.selectedContractorId);
-          return (
-            <div
-              className={clsx(
-                'fixed z-[100] w-[390px] bg-white border border-[#CBD5E1] rounded-2xl shadow-2xl p-5 animate-in fade-in transition-all duration-300',
-                isDrawerOpen ? 'bottom-6 left-8 lg:left-72' : 'bottom-6 right-8 sm:right-10'
-              )}
-            >
-              {/* Top Bar with Step and ONLY CTA #1: Cross Button */}
-              <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-[#F1F5F9]">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-[#18181B] text-white flex items-center justify-center text-[10px] font-bold">
-                    {currentStep.step}
-                  </span>
-                  <span className="text-xs font-bold text-[#0F172A]">Executive Pitch Tour ({currentStep.step}/12)</span>
-                </div>
-
-                {/* CTA #1: Cross Button */}
-                <button
-                  onClick={() => setTourOpen(false)}
-                  className="w-7 h-7 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100 flex items-center justify-center transition-colors"
-                  title="Close Tour"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-
-              {/* Target Highlight with Moving Animated Arrow */}
-              <div className="flex items-center gap-2 mb-3 bg-blue-50/80 border border-blue-200/80 rounded-lg px-2.5 py-1.5 text-xs">
-                <span className="inline-block transform animate-bounce text-blue-600 text-sm">
-                  {isDrawerOpen ? '👉' : '🔍'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[10px] uppercase font-bold text-blue-700 tracking-wider block">Live Focus Target</span>
-                  <span className="font-semibold text-blue-900 truncate block">{currentStep.title}</span>
-                </div>
-              </div>
-
-              {/* Description */}
-              <p className="text-xs text-[#475569] mb-4 leading-relaxed font-normal">
-                {currentStep.desc}
-              </p>
-
-              {/* Bottom Bar with ONLY CTA #2: The Demo Action Button */}
-              <div className="pt-2 border-t border-slate-100">
+          <div className="space-y-2 text-xs">
+            {tourStep === 0 && (
+              <>
+                <p className="font-bold text-slate-900">Step 1: Portfolio Status at a Glance</p>
+                <p className="text-slate-600 leading-relaxed">
+                  The CEO immediately spots that 2 of 7 projects are Critical, with Overall Construction Progress at 64% vs 70% plan.
+                </p>
                 <button
                   onClick={() => {
-                    currentStep.run(app);
-                    const nextIdx = (currentStepIndex + 1) % DEMO_STEPS.length;
-                    setCurrentStepIndex(nextIdx);
+                    setTab('overview');
+                    setTourStep(1);
                   }}
-                  className="w-full flex items-center justify-center gap-2 text-xs font-bold bg-[#18181B] text-white py-2.5 px-4 rounded-xl hover:bg-black transition-all shadow-md active:scale-[0.99] group"
+                  className="w-full mt-2 py-1.5 px-3 bg-[#20252D] text-white font-bold rounded-lg hover:bg-black text-xs flex items-center justify-center gap-1"
                 >
-                  <PlayCircle size={14} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-                  <span>Demo Step {currentStep.step}: {currentStep.actionName} →</span>
+                  <span>Scope to Troubled City →</span>
                 </button>
-              </div>
-            </div>
-          );
-        })()}
+              </>
+            )}
+            {tourStep === 1 && (
+              <>
+                <p className="font-bold text-slate-900">Step 2: Spot Riverstone Towers (Gurugram)</p>
+                <p className="text-slate-600 leading-relaxed">
+                  Riverstone Towers has a Critical Quality Score of 42/100 and is 38 days behind schedule on Tower 1.
+                </p>
+                <button
+                  onClick={() => {
+                    setTab('wip');
+                    setFilter('project', 'P004');
+                    setTourStep(2);
+                  }}
+                  className="w-full mt-2 py-1.5 px-3 bg-[#20252D] text-white font-bold rounded-lg hover:bg-black text-xs flex items-center justify-center gap-1"
+                >
+                  <span>Drill into WIP Floor Matrix →</span>
+                </button>
+              </>
+            )}
+            {tourStep === 2 && (
+              <>
+                <p className="font-bold text-slate-900">Step 3: Root-Cause on Floor 05 Block</p>
+                <p className="text-slate-600 leading-relaxed">
+                  Floor 05 column concreting is blocked due to Concrete Cube Test failure (NC-0001) & rejected inspection WIR-0021.
+                </p>
+                <button
+                  onClick={() => {
+                    setTab('nc');
+                    setFilter('project', 'P004');
+                    setTourStep(3);
+                  }}
+                  className="w-full mt-2 py-1.5 px-3 bg-[#20252D] text-white font-bold rounded-lg hover:bg-black text-xs flex items-center justify-center gap-1"
+                >
+                  <span>Inspect Defect Photo & Evidence →</span>
+                </button>
+              </>
+            )}
+            {tourStep === 3 && (
+              <>
+                <p className="font-bold text-slate-900">Step 4: Contractor Accountability</p>
+                <p className="text-slate-600 leading-relaxed">
+                  NC-0001 reveals contractor ABC Civil Works. We can trace their cross-project pass rate and repeated defects.
+                </p>
+                <button
+                  onClick={() => {
+                    setTab('contractors');
+                    setTourStep(0);
+                    setTourOpen(false);
+                  }}
+                  className="w-full mt-2 py-1.5 px-3 bg-[#20252D] text-white font-bold rounded-lg hover:bg-black text-xs flex items-center justify-center gap-1"
+                >
+                  <span>View Contractor Performance →</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
-        {/* Main Content Area */}
-        <main className="flex-1 px-6 sm:px-8 py-6 w-full max-w-[1600px] mx-auto">
-          {children}
-        </main>
-      </div>
+      {/* ============================================================
+          MAIN CONTENT AREA (Full Width Desktop)
+          ============================================================ */}
+      <main className="flex-1 w-full max-w-[1600px] mx-auto px-6 py-6">
+        {children}
+      </main>
+
+      {/* Shared Modals & Record Drawers */}
+      <AdminModal />
+      <WeightsConfigModal />
+      {state.selectedActivityId && (
+        <ActivityDetailDrawer
+          activityId={state.selectedActivityId}
+          onClose={() => selectActivity(null)}
+        />
+      )}
+      {state.selectedAuditId && (
+        <AuditDetailDrawer
+          auditId={state.selectedAuditId}
+          onClose={() => selectAudit(null)}
+        />
+      )}
     </div>
   );
 }

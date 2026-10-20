@@ -4,15 +4,21 @@
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import {
-  WIR_RECORDS, NC_RECORDS,
+  WIR_RECORDS, NC_RECORDS, WIP_ACTIVITIES,
   DEFAULT_WEIGHTS,
-  type WIR, type NC, type WIRStatus, type NCStatus, type ScoreWeights,
+  type WIR, type NC, type WIRStatus, type NCStatus, type ScoreWeights, type WIPActivity,
 } from '../data/seedData';
 
 // ── State ─────────────────────────────────────────────────────
+export type TabKey = 'overview' | 'wip' | 'wir' | 'quality' | 'nc' | 'contractors' | 'project-detail' | 'portfolio';
+export type UserRole = 'CXO' | 'ProjectsHead' | 'ProjectManager' | 'QualityInspector' | 'Contractor' | 'Admin';
+
 export interface AppState {
   // Navigation
-  activeTab: 'portfolio' | 'wir' | 'nc' | 'quality' | 'contractors';
+  activeTab: TabKey;
+
+  // Role
+  userRole: UserRole;
 
   // Filters
   filters: {
@@ -21,16 +27,21 @@ export interface AppState {
     stage: string;
     contractor: string;
     project: string;
+    tower: string;
+    floor: string;
     dateFrom: string;
     dateTo: string;
     status: string;
     severity: string;
+    category: string;
     search: string;
+    reportingPeriod: string;
   };
 
   // Data (mutable records for demo interactions)
   wirs: WIR[];
   ncs: NC[];
+  wipActivities: WIPActivity[];
 
   // Quality Score weights
   weights: ScoreWeights;
@@ -40,6 +51,12 @@ export interface AppState {
   selectedWIRId: string | null;
   selectedNCId: string | null;
   selectedContractorId: string | null;
+  selectedActivityId: string | null;
+  selectedAuditId: string | null;
+
+  // Modals
+  adminModalOpen: boolean;
+  weightsModalOpen: boolean;
 
   // Chart state
   trendProjectIds: string[];
@@ -47,33 +64,44 @@ export interface AppState {
 
 const initialFilters = {
   region: '',
-  city: '',
+  city: 'All locations',
   stage: '',
   contractor: '',
   project: '',
+  tower: '',
+  floor: '',
   dateFrom: '',
   dateTo: '',
   status: '',
   severity: '',
+  category: '',
   search: '',
+  reportingPeriod: 'Q3 FY25',
 };
 
 const initialState: AppState = {
-  activeTab: 'portfolio',
+  activeTab: 'overview',
+  userRole: 'CXO',
   filters: initialFilters,
   wirs: WIR_RECORDS,
   ncs: NC_RECORDS,
+  wipActivities: WIP_ACTIVITIES,
   weights: DEFAULT_WEIGHTS,
   selectedProjectId: null,
   selectedWIRId: null,
   selectedNCId: null,
   selectedContractorId: null,
-  trendProjectIds: ['P001', 'P002', 'P004', 'P005'],
+  selectedActivityId: null,
+  selectedAuditId: null,
+  adminModalOpen: false,
+  weightsModalOpen: false,
+  trendProjectIds: ['P004', 'P001', 'P002', 'P005'],
 };
 
 // ── Actions ───────────────────────────────────────────────────
 type Action =
-  | { type: 'SET_TAB'; tab: AppState['activeTab'] }
+  | { type: 'SET_TAB'; tab: TabKey }
+  | { type: 'SET_USER_ROLE'; role: UserRole }
   | { type: 'SET_FILTER'; key: keyof AppState['filters']; value: string }
   | { type: 'RESET_FILTERS' }
   | { type: 'SET_WEIGHTS'; weights: ScoreWeights }
@@ -81,8 +109,13 @@ type Action =
   | { type: 'SELECT_WIR'; id: string | null }
   | { type: 'SELECT_NC'; id: string | null }
   | { type: 'SELECT_CONTRACTOR'; id: string | null }
+  | { type: 'SELECT_ACTIVITY'; id: string | null }
+  | { type: 'SELECT_AUDIT'; id: string | null }
+  | { type: 'SET_ADMIN_MODAL'; open: boolean }
+  | { type: 'SET_WEIGHTS_MODAL'; open: boolean }
   | { type: 'UPDATE_WIR_STATUS'; id: string; status: WIRStatus; note?: string; actor?: string }
   | { type: 'UPDATE_NC_STATUS'; id: string; status: NCStatus; note?: string; actor?: string }
+  | { type: 'UPDATE_ACTIVITY_PROGRESS'; id: string; actualProgress: number; status?: WIPActivity['status'] }
   | { type: 'SET_TREND_PROJECTS'; ids: string[] }
   | { type: 'RESET_DEMO_DATA' };
 
@@ -90,10 +123,23 @@ type Action =
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_TAB':
-      return { ...state, activeTab: action.tab };
+      return {
+        ...state,
+        activeTab: action.tab === 'portfolio' ? 'overview' : action.tab,
+      };
+
+    case 'SET_USER_ROLE':
+      return {
+        ...state,
+        userRole: action.role,
+        adminModalOpen: action.role === 'Admin',
+      };
 
     case 'SET_FILTER':
-      return { ...state, filters: { ...state.filters, [action.key]: action.value } };
+      return {
+        ...state,
+        filters: { ...state.filters, [action.key]: action.value },
+      };
 
     case 'RESET_FILTERS':
       return { ...state, filters: initialFilters };
@@ -112,6 +158,18 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SELECT_CONTRACTOR':
       return { ...state, selectedContractorId: action.id };
+
+    case 'SELECT_ACTIVITY':
+      return { ...state, selectedActivityId: action.id };
+
+    case 'SELECT_AUDIT':
+      return { ...state, selectedAuditId: action.id };
+
+    case 'SET_ADMIN_MODAL':
+      return { ...state, adminModalOpen: action.open };
+
+    case 'SET_WEIGHTS_MODAL':
+      return { ...state, weightsModalOpen: action.open };
 
     case 'UPDATE_WIR_STATUS': {
       const now = new Date().toISOString().split('T')[0];
@@ -133,7 +191,7 @@ function reducer(state: AppState, action: Action): AppState {
                   {
                     date: now,
                     action: action.status,
-                    actor: action.actor ?? 'System',
+                    actor: action.actor ?? 'Quality Inspector',
                     note: action.note,
                   },
                 ],
@@ -159,7 +217,7 @@ function reducer(state: AppState, action: Action): AppState {
                   {
                     date: now,
                     action: action.status,
-                    actor: action.actor ?? 'System',
+                    actor: action.actor ?? 'Site Engineer',
                     note: action.note,
                   },
                 ],
@@ -169,11 +227,31 @@ function reducer(state: AppState, action: Action): AppState {
       };
     }
 
+    case 'UPDATE_ACTIVITY_PROGRESS': {
+      return {
+        ...state,
+        wipActivities: state.wipActivities.map(a =>
+          a.id === action.id
+            ? {
+                ...a,
+                actualProgress: action.actualProgress,
+                status: action.status ?? (action.actualProgress >= 100 ? 'Completed' : a.status),
+              }
+            : a
+        ),
+      };
+    }
+
     case 'SET_TREND_PROJECTS':
       return { ...state, trendProjectIds: action.ids };
 
     case 'RESET_DEMO_DATA':
-      return { ...initialState };
+      return {
+        ...initialState,
+        wirs: [...WIR_RECORDS],
+        ncs: [...NC_RECORDS],
+        wipActivities: [...WIP_ACTIVITIES],
+      };
 
     default:
       return state;
@@ -184,15 +262,22 @@ function reducer(state: AppState, action: Action): AppState {
 interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
-  setTab: (tab: AppState['activeTab']) => void;
+  setTab: (tab: TabKey) => void;
+  setUserRole: (role: UserRole) => void;
   setFilter: (key: keyof AppState['filters'], value: string) => void;
   resetFilters: () => void;
+  setWeights: (weights: ScoreWeights) => void;
   selectProject: (id: string | null) => void;
   selectWIR: (id: string | null) => void;
   selectNC: (id: string | null) => void;
   selectContractor: (id: string | null) => void;
+  selectActivity: (id: string | null) => void;
+  selectAudit: (id: string | null) => void;
+  setAdminModalOpen: (open: boolean) => void;
+  setWeightsModalOpen: (open: boolean) => void;
   updateWIRStatus: (id: string, status: WIRStatus, note?: string, actor?: string) => void;
   updateNCStatus: (id: string, status: NCStatus, note?: string, actor?: string) => void;
+  updateActivityProgress: (id: string, actualProgress: number, status?: WIPActivity['status']) => void;
   resetDemo: () => void;
 }
 
@@ -201,25 +286,34 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const setTab = useCallback((tab: AppState['activeTab']) => dispatch({ type: 'SET_TAB', tab }), []);
+  const setTab = useCallback((tab: TabKey) => dispatch({ type: 'SET_TAB', tab }), []);
+  const setUserRole = useCallback((role: UserRole) => dispatch({ type: 'SET_USER_ROLE', role }), []);
   const setFilter = useCallback((key: keyof AppState['filters'], value: string) => dispatch({ type: 'SET_FILTER', key, value }), []);
   const resetFilters = useCallback(() => dispatch({ type: 'RESET_FILTERS' }), []);
+  const setWeights = useCallback((weights: ScoreWeights) => dispatch({ type: 'SET_WEIGHTS', weights }), []);
   const selectProject = useCallback((id: string | null) => dispatch({ type: 'SELECT_PROJECT', id }), []);
   const selectWIR = useCallback((id: string | null) => dispatch({ type: 'SELECT_WIR', id }), []);
   const selectNC = useCallback((id: string | null) => dispatch({ type: 'SELECT_NC', id }), []);
   const selectContractor = useCallback((id: string | null) => dispatch({ type: 'SELECT_CONTRACTOR', id }), []);
+  const selectActivity = useCallback((id: string | null) => dispatch({ type: 'SELECT_ACTIVITY', id }), []);
+  const selectAudit = useCallback((id: string | null) => dispatch({ type: 'SELECT_AUDIT', id }), []);
+  const setAdminModalOpen = useCallback((open: boolean) => dispatch({ type: 'SET_ADMIN_MODAL', open }), []);
+  const setWeightsModalOpen = useCallback((open: boolean) => dispatch({ type: 'SET_WEIGHTS_MODAL', open }), []);
   const updateWIRStatus = useCallback((id: string, status: WIRStatus, note?: string, actor?: string) =>
     dispatch({ type: 'UPDATE_WIR_STATUS', id, status, note, actor }), []);
   const updateNCStatus = useCallback((id: string, status: NCStatus, note?: string, actor?: string) =>
     dispatch({ type: 'UPDATE_NC_STATUS', id, status, note, actor }), []);
+  const updateActivityProgress = useCallback((id: string, actualProgress: number, status?: WIPActivity['status']) =>
+    dispatch({ type: 'UPDATE_ACTIVITY_PROGRESS', id, actualProgress, status }), []);
   const resetDemo = useCallback(() => dispatch({ type: 'RESET_DEMO_DATA' }), []);
 
   return (
     <AppContext.Provider value={{
       state, dispatch,
-      setTab, setFilter, resetFilters,
-      selectProject, selectWIR, selectNC, selectContractor,
-      updateWIRStatus, updateNCStatus, resetDemo,
+      setTab, setUserRole, setFilter, resetFilters, setWeights,
+      selectProject, selectWIR, selectNC, selectContractor, selectActivity, selectAudit,
+      setAdminModalOpen, setWeightsModalOpen,
+      updateWIRStatus, updateNCStatus, updateActivityProgress, resetDemo,
     }}>
       {children}
     </AppContext.Provider>

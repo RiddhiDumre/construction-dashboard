@@ -1,32 +1,30 @@
 // ============================================================
-// WIR PAGE — Work Inspection Requests
+// PAGE 3 — WIR: WORK INSPECTION REQUESTS
+// Tracks first-time pass rates, pending approvals, and SLA breaches
 // ============================================================
 
 import React, { useState, useMemo } from 'react';
+import {
+  ClipboardCheck, AlertTriangle, CheckCircle2, Clock, X,
+  Search, SlidersHorizontal, Filter, ChevronRight, ArrowRight,
+  User, Building2, HardHat, Camera, FileText, Check, AlertCircle
+} from 'lucide-react';
 import clsx from 'clsx';
 import { useApp } from '../store/appStore';
 import { getWIRSummaryMetrics } from '../data/calculations';
 import { PROJECTS, CONTRACTORS, SLA_DAYS, type WIR, type WIRStatus } from '../data/seedData';
-import {
-  KPICard, StatusBadge, SortableTh, FilterSelect, SearchInput,
-  EmptyState, PageHeader, Drawer, DrawerSection, FieldRow,
-  ActivityTimeline, OverdueBadge, SitePhotoCard,
-} from '../components/ui';
-import { Camera, FileCheck, AlertTriangle } from 'lucide-react';
 
-const PROJECT_OPTIONS = PROJECTS.map(p => ({ value: p.id, label: p.name }));
-const CONTRACTOR_OPTIONS = CONTRACTORS.map(c => ({ value: c.id, label: c.name }));
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'Draft', label: 'Draft' },
-  { value: 'Submitted', label: 'Submitted' },
-  { value: 'Awaiting Review', label: 'Awaiting Review' },
-  { value: 'Rejected', label: 'Rejected' },
-  { value: 'Rectification In Progress', label: 'Rectification In Progress' },
-  { value: 'Resubmitted', label: 'Resubmitted' },
-  { value: 'Approved', label: 'Approved' },
+const STATUS_OPTIONS: string[] = [
+  'All Statuses',
+  'Draft',
+  'Submitted',
+  'Awaiting Review',
+  'Rejected',
+  'Rectification In Progress',
+  'Resubmitted',
+  'Approved',
 ];
 
-// Valid transitions
 const VALID_TRANSITIONS: Record<WIRStatus, WIRStatus[]> = {
   Draft: ['Submitted'],
   Submitted: ['Awaiting Review', 'Approved', 'Rejected'],
@@ -38,8 +36,18 @@ const VALID_TRANSITIONS: Record<WIRStatus, WIRStatus[]> = {
 };
 
 export function WIRPage() {
-  const { state, setFilter, resetFilters, selectWIR, updateWIRStatus } = useApp();
-  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'submittedDate', dir: 'desc' });
+  const { state, setFilter, selectWIR, updateWIRStatus, setTab, selectNC } = useApp();
+
+  const [localSearch, setLocalSearch] = useState(state.filters.search || '');
+  const [selectedStatus, setSelectedStatus] = useState('All Statuses');
+  const [selectedProject, setSelectedProject] = useState(state.filters.project || '');
+  const [selectedContractor, setSelectedContractor] = useState(state.filters.contractor || '');
+  const [selectedReviewer, setSelectedReviewer] = useState('');
+  const [slaOnly, setSlaOnly] = useState(false);
+  const [sortKey, setSortKey] = useState<string>('submittedDate');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // Modal for workflow action
   const [actionModal, setActionModal] = useState<{
     wirId: string;
     newStatus: WIRStatus;
@@ -50,396 +58,638 @@ export function WIRPage() {
   const { wirs } = state;
   const metrics = useMemo(() => getWIRSummaryMetrics(wirs), [wirs]);
 
-  // Reviewers & Towers
-  const REVIEWER_OPTIONS = useMemo(() => {
-    return [...new Set(wirs.map(w => w.reviewer))].map(r => ({ value: r, label: r }));
+  // Reviewers list
+  const reviewers = useMemo(() => {
+    return [...new Set(wirs.map(w => w.reviewer))];
   }, [wirs]);
 
-  const TOWER_OPTIONS = useMemo(() => {
-    return [...new Set(wirs.map(w => w.tower))].map(t => ({ value: t, label: t }));
-  }, [wirs]);
+  // Filtered rows
+  const filteredWIRs = useMemo(() => {
+    return wirs.filter(w => {
+      // Global city filter
+      if (state.filters.city && state.filters.city !== 'All locations' && state.filters.city !== 'All Locations') {
+        const proj = PROJECTS.find(p => p.id === w.projectId);
+        if (!proj) return false;
+        if (state.filters.city.toLowerCase() === 'mumbai') {
+          if (proj.city !== 'Mumbai' && proj.city !== 'Navi Mumbai' && proj.city !== 'Thane') return false;
+        } else if (proj.city.toLowerCase() !== state.filters.city.toLowerCase()) {
+          return false;
+        }
+      }
+      // Project filter
+      if (selectedProject && w.projectId !== selectedProject) return false;
+      // Contractor filter
+      if (selectedContractor && w.contractorId !== selectedContractor) return false;
+      // Status filter
+      if (selectedStatus !== 'All Statuses' && w.status !== selectedStatus) return false;
+      // Reviewer filter
+      if (selectedReviewer && w.reviewer !== selectedReviewer) return false;
+      // SLA Only filter
+      if (slaOnly && (!w.slaBreach || w.status === 'Approved')) return false;
+      // Search
+      if (localSearch.trim()) {
+        const q = localSearch.toLowerCase();
+        const proj = PROJECTS.find(p => p.id === w.projectId);
+        const contractor = CONTRACTORS.find(c => c.id === w.contractorId);
+        if (!w.id.toLowerCase().includes(q) &&
+            !w.activity.toLowerCase().includes(q) &&
+            !w.reviewer.toLowerCase().includes(q) &&
+            !proj?.name.toLowerCase().includes(q) &&
+            !contractor?.name.toLowerCase().includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    }).sort((a, b) => {
+      if (sortKey === 'submittedDate') {
+        return sortDir === 'asc' ? a.submittedDate.localeCompare(b.submittedDate) : b.submittedDate.localeCompare(a.submittedDate);
+      }
+      if (sortKey === 'daysAwaiting') {
+        return sortDir === 'asc' ? a.daysAwaiting - b.daysAwaiting : b.daysAwaiting - a.daysAwaiting;
+      }
+      if (sortKey === 'id') {
+        return sortDir === 'asc' ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
+      }
+      return 0;
+    });
+  }, [wirs, state.filters.city, selectedProject, selectedContractor, selectedStatus, selectedReviewer, slaOnly, localSearch, sortKey, sortDir]);
 
-  // Filter
-  const filtered = useMemo(() => {
-    let rows = wirs;
-    if (state.filters.project) rows = rows.filter(w => w.projectId === state.filters.project);
-    if (state.filters.contractor) rows = rows.filter(w => w.contractorId === state.filters.contractor);
-    if (state.filters.status) rows = rows.filter(w => w.status === state.filters.status);
-    if (state.filters.severity) rows = rows.filter(w => w.reviewer === state.filters.severity); // repurposed for reviewer filter
-    if (state.filters.city) rows = rows.filter(w => w.tower === state.filters.city); // repurposed for tower filter
-    if (state.filters.search) {
-      const q = state.filters.search.toLowerCase();
-      rows = rows.filter(w =>
-        w.id.toLowerCase().includes(q) ||
-        w.activity.toLowerCase().includes(q) ||
-        w.reviewer.toLowerCase().includes(q) ||
-        PROJECTS.find(p => p.id === w.projectId)?.name.toLowerCase().includes(q) ||
-        false
-      );
+  // Selected WIR for Drawer
+  const selectedWIR = useMemo(() => {
+    return wirs.find(w => w.id === state.selectedWIRId) || null;
+  }, [wirs, state.selectedWIRId]);
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
     }
-    return rows;
-  }, [wirs, state.filters]);
+  };
 
-  // Sort
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let av: unknown, bv: unknown;
-      switch (sort.key) {
-        case 'submittedDate': av = a.submittedDate; bv = b.submittedDate; break;
-        case 'daysAwaiting': av = a.daysAwaiting; bv = b.daysAwaiting; break;
-        case 'status': av = a.status; bv = b.status; break;
-        case 'id': av = a.id; bv = b.id; break;
-        default: av = a.submittedDate; bv = b.submittedDate;
-      }
-      if (typeof av === 'string' && typeof bv === 'string') {
-        return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-      }
-      const an = av as number, bn = bv as number;
-      return sort.dir === 'asc' ? an - bn : bn - an;
-    });
-  }, [filtered, sort]);
-
-  function handleSort(key: string) {
-    setSort(prev => prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' });
-  }
-
-  function initiateTransition(wirId: string, newStatus: WIRStatus) {
-    setActionModal({
-      wirId,
-      newStatus,
-      note: '',
-      requiresNote: newStatus === 'Rejected',
-    });
-  }
-
-  function confirmTransition() {
+  const handleExecuteAction = () => {
     if (!actionModal) return;
-    const { wirId, newStatus, note } = actionModal;
-    updateWIRStatus(wirId, newStatus, note, 'Rajan Mehta');
-    setActionModal(null);
-  }
+    if (actionModal.requiresNote && !actionModal.note.trim()) return;
 
-  const selectedWIR = state.selectedWIRId ? wirs.find(w => w.id === state.selectedWIRId) : null;
-  const hasFilters = Object.values(state.filters).some(v => v !== '');
+    updateWIRStatus(actionModal.wirId, actionModal.newStatus, actionModal.note, 'Quality Inspector');
+    setActionModal(null);
+  };
 
   return (
-    <div>
-      <PageHeader title="WIR" subtitle="Work Inspection Requests: inspection pass rates, bottlenecks and approval turnaround." />
-
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap mb-5">
-        <FilterSelect label="Project" value={state.filters.project} options={PROJECT_OPTIONS} onChange={v => setFilter('project', v)} />
-        <FilterSelect label="Contractor" value={state.filters.contractor} options={CONTRACTOR_OPTIONS} onChange={v => setFilter('contractor', v)} />
-        <FilterSelect label="Status" value={state.filters.status} options={STATUS_OPTIONS} onChange={v => setFilter('status', v)} />
-        <FilterSelect label="Reviewer" value={state.filters.severity} options={REVIEWER_OPTIONS} onChange={v => setFilter('severity', v)} />
-        <FilterSelect label="Tower/Location" value={state.filters.city} options={TOWER_OPTIONS} onChange={v => setFilter('city', v)} />
-        <SearchInput value={state.filters.search} onChange={v => setFilter('search', v)} placeholder="Search WIR ID, activity, reviewer…" />
-        {hasFilters && (
-          <button onClick={resetFilters} className="text-xs text-[#697586] hover:text-[#20252D] underline">Reset filters</button>
-        )}
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
-        <KPICard label="First-Time Pass Rate" value={`${metrics.firstTimePassRate}%`} sub={<span className="text-xs text-[#697586]">Approved on 1st inspection</span>} />
-        <KPICard label="Total WIRs" value={metrics.total} sub={<span className="text-xs text-[#697586]">Across selected scope</span>} />
-        <KPICard label="Pending Beyond SLA" value={metrics.pendingBeyondSLA} alert={metrics.pendingBeyondSLA > 0 ? `>${SLA_DAYS}d SLA` : undefined} sub={<span className="text-xs text-[#697586]">Breaching review turnaround</span>} />
-        <KPICard label="Rejected — Resubmit Pending" value={metrics.rejectedAwaitingResubmission} alert={metrics.rejectedAwaitingResubmission > 0 ? 'Action required' : undefined} sub={<span className="text-xs text-[#697586]">Awaiting contractor rectification</span>} />
-        <KPICard label="Avg Turnaround" value={`${metrics.avgTurnaroundDays}d`} sub={<span className="text-xs text-[#697586]">Submission to approval</span>} />
-      </div>
-
-      {/* WIR Table */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-[#0F172A]">Work Inspection Requests</h2>
-          <span className="text-xs text-[#94A3B8]">{sorted.length} record{sorted.length !== 1 ? 's' : ''} · Highlighted rows breach 7-day SLA</span>
+    <div className="space-y-6">
+      {/* ============================================================
+          PAGE HEADER
+          ============================================================ */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E5E7EB]">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#20252D]">
+              Work Inspection Requests (WIR)
+            </h1>
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+              Inspection Register
+            </span>
+          </div>
+          <p className="text-xs text-[#697586] mt-0.5">
+            Real-time quality signoffs, first-time pass rates, and SLA bottleneck tracking (SLA: {SLA_DAYS} days).
+          </p>
         </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-[#697586]">Inspection Turnaround SLA:</span>
+          <span className="font-bold text-[#20252D] bg-white border border-[#E5E7EB] px-2.5 py-1 rounded-lg shadow-2xs">
+            {SLA_DAYS} Working Days
+          </span>
+        </div>
+      </div>
+
+      {/* ============================================================
+          SECTION A: WIR 5 COMPACT SUMMARY MEASURES
+          ============================================================ */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            First-Time Pass Rate
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-blue-600">{metrics.firstTimePassRate}%</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Approved on first decision
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Total WIRs Submitted
+          </span>
+          <span className="text-xl font-black text-[#20252D]">{metrics.total}</span>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Across portfolio
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Pending Beyond SLA ({SLA_DAYS}d)
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-[#B7791F]">{metrics.pendingBeyondSLA}</span>
+            <span className="text-xs text-amber-700 font-semibold">overdue</span>
+          </div>
+          <p className="text-[11px] text-[#B7791F] mt-0.5 font-medium">
+            Bottleneck on pour clearance
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Rejected Awaiting Rectification
+          </span>
+          <span className="text-xl font-black text-[#C63F43]">
+            {metrics.rejectedAwaitingResubmission}
+          </span>
+          <p className="text-[11px] text-[#C63F43] mt-0.5 font-medium">
+            Requires contractor rework
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs col-span-2 sm:col-span-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Avg Turnaround Time
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-[#20252D]">
+              {metrics.avgTurnaroundDays}
+            </span>
+            <span className="text-xs text-slate-500">days</span>
+          </div>
+          <p className="text-[11px] text-emerald-700 mt-0.5 font-semibold">
+            Target SLA: ≤ 7.0 days
+          </p>
+        </div>
+      </div>
+
+      {/* ============================================================
+          SECTION B: FILTERS BAR
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Filter size={14} className="text-blue-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Filter Inspection Register
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setSelectedProject('');
+              setSelectedContractor('');
+              setSelectedStatus('All Statuses');
+              setSelectedReviewer('');
+              setSlaOnly(false);
+              setLocalSearch('');
+            }}
+            className="text-xs font-semibold text-blue-600 hover:underline"
+          >
+            Reset Filters
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* Search */}
+          <div className="col-span-2 sm:col-span-1">
+            <input
+              type="text"
+              value={localSearch}
+              onChange={e => setLocalSearch(e.target.value)}
+              placeholder="Search WIR ID, activity…"
+              className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none text-[#20252D]"
+            />
+          </div>
+
+          {/* Project */}
+          <div>
+            <select
+              value={selectedProject}
+              onChange={e => setSelectedProject(e.target.value)}
+              className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none"
+            >
+              <option value="">All Projects</option>
+              {PROJECTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+
+          {/* Contractor */}
+          <div>
+            <select
+              value={selectedContractor}
+              onChange={e => setSelectedContractor(e.target.value)}
+              className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none"
+            >
+              <option value="">All Contractors</option>
+              {CONTRACTORS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <select
+              value={selectedStatus}
+              onChange={e => setSelectedStatus(e.target.value)}
+              className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none"
+            >
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Reviewer */}
+          <div>
+            <select
+              value={selectedReviewer}
+              onChange={e => setSelectedReviewer(e.target.value)}
+              className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none"
+            >
+              <option value="">All Inspectors</option>
+              {reviewers.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          {/* SLA Breach Toggle */}
+          <div>
+            <button
+              onClick={() => setSlaOnly(!slaOnly)}
+              className={`w-full h-8 px-2.5 rounded-lg text-xs font-bold border transition-colors flex items-center justify-center gap-1.5 ${
+                slaOnly
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Clock size={12} />
+              <span>{slaOnly ? 'Overdue Only (ON)' : 'SLA Breaches'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          SECTION C: WIR REGISTER TABLE
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xs overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#E5E7EB] bg-slate-50/50 flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-700">
+            Showing {filteredWIRs.length} Inspection Requests
+          </span>
+          <span className="text-xs text-slate-400">
+            Click any row to open full inspection checklist, photo evidence & approve/reject actions
+          </span>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
+          <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                <SortableTh label="WIR ID" sortKey="id" currentSort={sort} onSort={handleSort} className="pl-4" />
-                <th className="text-left text-xs font-medium text-[#697586] uppercase tracking-wide px-3 py-2.5">Project</th>
-                <th className="text-left text-xs font-medium text-[#697586] uppercase tracking-wide px-3 py-2.5">Tower / Floor</th>
-                <th className="text-left text-xs font-medium text-[#697586] uppercase tracking-wide px-3 py-2.5">Activity</th>
-                <th className="text-left text-xs font-medium text-[#697586] uppercase tracking-wide px-3 py-2.5">Contractor</th>
-                <SortableTh label="Submitted" sortKey="submittedDate" currentSort={sort} onSort={handleSort} />
-                <th className="text-left text-xs font-medium text-[#697586] uppercase tracking-wide px-3 py-2.5">Reviewer</th>
-                <SortableTh label="Status" sortKey="status" currentSort={sort} onSort={handleSort} />
-                <SortableTh label="Time Awaiting" sortKey="daysAwaiting" currentSort={sort} onSort={handleSort} />
-                <th className="text-left text-xs font-medium text-[#697586] uppercase tracking-wide px-3 py-2.5">1st Pass</th>
+              <tr className="border-b border-[#E5E7EB] bg-slate-50/70 text-[#697586] font-semibold">
+                <th
+                  onClick={() => handleSort('id')}
+                  className="py-3 px-4 cursor-pointer hover:text-slate-900"
+                >
+                  WIR ID
+                </th>
+                <th className="py-3 px-3">Project & Location</th>
+                <th className="py-3 px-3">Work Package Inspected</th>
+                <th className="py-3 px-3">Contractor</th>
+                <th
+                  onClick={() => handleSort('submittedDate')}
+                  className="py-3 px-3 cursor-pointer hover:text-slate-900"
+                >
+                  Submitted Date
+                </th>
+                <th className="py-3 px-3">Inspector</th>
+                <th
+                  onClick={() => handleSort('daysAwaiting')}
+                  className="py-3 px-3 cursor-pointer hover:text-slate-900"
+                >
+                  Waiting Time
+                </th>
+                <th className="py-3 px-3">First-Time Result</th>
+                <th className="py-3 px-4">Status</th>
               </tr>
             </thead>
-            <tbody>
-              {sorted.length === 0 ? (
-                <tr><td colSpan={10}><EmptyState message="No WIRs match the current filters." /></td></tr>
-              ) : sorted.map(wir => {
-                const project = PROJECTS.find(p => p.id === wir.projectId);
+            <tbody className="divide-y divide-[#E5E7EB]">
+              {filteredWIRs.map(wir => {
+                const proj = PROJECTS.find(p => p.id === wir.projectId);
                 const contractor = CONTRACTORS.find(c => c.id === wir.contractorId);
-                const isBreach = wir.slaBreach && wir.status !== 'Approved';
+                const isOverdue = wir.slaBreach && wir.status !== 'Approved';
+
                 return (
                   <tr
                     key={wir.id}
-                    className={clsx(
-                      'border-b border-[#F3F4F6] last:border-0 table-row-hover',
-                      isBreach && 'bg-red-50/25',
-                      wir.status === 'Rejected' && 'bg-red-50/15'
-                    )}
                     onClick={() => selectWIR(wir.id)}
+                    className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
                   >
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-mono font-medium text-[#315EFB]">{wir.id}</span>
-                        {isBreach && <OverdueBadge />}
-                        {wir.sitePhoto && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.2 rounded font-semibold" title="On-site photo attached">
-                            <Camera size={10} /> Photo
-                          </span>
-                        )}
-                      </div>
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 group-hover:text-blue-600">
+                      {wir.id}
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-[#697586]">
-                      <div className="flex items-center gap-2">
-                        {project?.image && (
-                          <img
-                            src={project.image}
-                            alt={project.name}
-                            className="w-5 h-5 rounded object-cover border border-[#E2E8F0] flex-shrink-0"
-                          />
-                        )}
-                        <span>{project?.name}</span>
-                      </div>
+
+                    <td className="py-3.5 px-3">
+                      <span className="font-bold text-slate-900">{proj?.name}</span>
+                      <p className="text-[11px] text-slate-500">{wir.tower} · {wir.floor || 'Level'}</p>
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-[#697586]">{wir.tower}</td>
-                    <td className="px-3 py-2.5 text-sm text-[#20252D] max-w-[200px] truncate">{wir.activity}</td>
-                    <td className="px-3 py-2.5 text-sm text-[#697586]">{contractor?.name}</td>
-                    <td className="px-3 py-2.5 text-sm text-[#697586]">{wir.submittedDate}</td>
-                    <td className="px-3 py-2.5 text-sm text-[#697586]">{wir.reviewer}</td>
-                    <td className="px-3 py-2.5"><StatusBadge status={wir.status} /></td>
-                    <td className="px-3 py-2.5 text-sm text-[#697586]">
-                      {wir.daysAwaiting > 0 ? (
-                        <span className={clsx(isBreach ? 'text-[#C63F43] font-semibold' : '')}>
-                          {wir.daysAwaiting}d
+
+                    <td className="py-3.5 px-3 font-medium text-slate-900 max-w-xs truncate">
+                      {wir.activity}
+                    </td>
+
+                    <td className="py-3.5 px-3 text-slate-700">
+                      {contractor?.name ?? 'Civil Works'}
+                    </td>
+
+                    <td className="py-3.5 px-3 text-slate-600">
+                      {wir.submittedDate}
+                    </td>
+
+                    <td className="py-3.5 px-3 font-medium text-slate-700">
+                      {wir.reviewer}
+                    </td>
+
+                    <td className="py-3.5 px-3">
+                      <span className={`font-bold ${isOverdue ? 'text-amber-700' : 'text-slate-600'}`}>
+                        {wir.daysAwaiting}d {isOverdue && '(SLA breach)'}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                        wir.firstPassResult === 'Pass' ? 'bg-emerald-50 text-emerald-800' :
+                        wir.firstPassResult === 'Fail' ? 'bg-rose-50 text-rose-800' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {wir.firstPassResult}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center justify-between">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                          wir.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                          wir.status === 'Rejected' ? 'bg-rose-100 text-rose-800' :
+                          wir.status === 'Awaiting Review' ? 'bg-amber-100 text-amber-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {wir.status}
                         </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {wir.firstPassResult === 'Pass' && <span className="text-xs font-semibold text-[#16805D]">Pass</span>}
-                      {wir.firstPassResult === 'Fail' && <span className="text-xs font-semibold text-[#C63F43]">Fail</span>}
-                      {wir.firstPassResult === 'Pending' && <span className="text-xs text-[#8792A2]">—</span>}
+                        <ChevronRight size={13} className="text-slate-300 group-hover:text-slate-600" />
+                      </div>
                     </td>
                   </tr>
                 );
               })}
+
+              {filteredWIRs.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
+                    No inspection requests found matching the current filters.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* WIR Detail Drawer */}
+      {/* ============================================================
+          SECTION D: WIR DETAIL DRAWER
+          ============================================================ */}
       {selectedWIR && (
-        <WIRDetailDrawer
-          wir={selectedWIR}
-          onClose={() => selectWIR(null)}
-          onTransition={initiateTransition}
-        />
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-xl bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-200 bg-slate-50/60 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="font-mono text-xs font-black text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-2xs">
+                    {selectedWIR.id}
+                  </span>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    selectedWIR.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
+                    selectedWIR.status === 'Rejected' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {selectedWIR.status}
+                  </span>
+                  {selectedWIR.slaBreach && selectedWIR.status !== 'Approved' && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                      SLA Overdue
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
+                  {selectedWIR.activity}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  {PROJECTS.find(p => p.id === selectedWIR.projectId)?.name} · {selectedWIR.tower} · {selectedWIR.floor || ''}
+                </p>
+              </div>
+              <button
+                onClick={() => selectWIR(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Rejection Alert if rejected */}
+              {selectedWIR.rejectionReason && (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-rose-900 uppercase tracking-wide">
+                    <AlertTriangle size={15} className="text-rose-600" />
+                    <span>Inspection Rejection Reason</span>
+                  </div>
+                  <p className="text-xs text-rose-800 leading-relaxed pt-1">
+                    {selectedWIR.rejectionReason}
+                  </p>
+                </div>
+              )}
+
+              {/* Site Photo & Defect Evidence */}
+              {selectedWIR.sitePhoto && (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                    Site Defect Photo & Evidence
+                  </span>
+                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-100">
+                    <img
+                      src={selectedWIR.sitePhoto.url}
+                      alt="Defect Evidence"
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="p-3 bg-white text-xs">
+                      <p className="font-semibold text-slate-900">{selectedWIR.sitePhoto.caption}</p>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1 border-t border-slate-100">
+                        <span>{selectedWIR.sitePhoto.locationGPS}</span>
+                        <span>{selectedWIR.sitePhoto.timestamp}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Inspection Details Grid */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Inspection Specification
+                </h5>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Contractor Submitter</span>
+                    <p className="font-bold text-slate-900 mt-0.5">
+                      {CONTRACTORS.find(c => c.id === selectedWIR.contractorId)?.name}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Lead Quality Reviewer</span>
+                    <p className="font-bold text-slate-900 mt-0.5">{selectedWIR.reviewer}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Submission Date</span>
+                    <p className="font-bold text-slate-900 mt-0.5">{selectedWIR.submittedDate}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">First-Pass Decision</span>
+                    <p className="font-bold text-slate-900 mt-0.5">{selectedWIR.firstPassResult}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resubmission History Timeline */}
+              <div className="space-y-2.5">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Workflow Audit Trail ({selectedWIR.history.length} Events)
+                </h5>
+                <div className="border-l-2 border-slate-200 ml-2.5 pl-4 space-y-3">
+                  {selectedWIR.history.map((h, i) => (
+                    <div key={i} className="relative">
+                      <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-slate-400 ring-4 ring-white" />
+                      <div className="text-xs">
+                        <span className="font-bold text-slate-900">{h.action}</span>
+                        <span className="text-slate-400 ml-2">by {h.actor} · {h.date}</span>
+                        {h.note && (
+                          <p className="text-[11px] text-slate-600 mt-0.5 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                            {h.note}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer with Workflow Action Buttons */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+              <button
+                onClick={() => selectWIR(null)}
+                className="px-3 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
+              >
+                Close
+              </button>
+
+              <div className="flex items-center gap-2">
+                {/* If submitted or awaiting review -> can Approve or Reject */}
+                {(selectedWIR.status === 'Submitted' || selectedWIR.status === 'Awaiting Review' || selectedWIR.status === 'Resubmitted') && (
+                  <>
+                    <button
+                      onClick={() => setActionModal({
+                        wirId: selectedWIR.id,
+                        newStatus: 'Rejected',
+                        note: '',
+                        requiresNote: true,
+                      })}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                    >
+                      Reject Inspection
+                    </button>
+                    <button
+                      onClick={() => updateWIRStatus(selectedWIR.id, 'Approved', 'Work meets specifications', 'Quality Inspector')}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                    >
+                      Approve & Sign Off
+                    </button>
+                  </>
+                )}
+
+                {/* If rejected -> can rectify */}
+                {selectedWIR.status === 'Rejected' && (
+                  <button
+                    onClick={() => updateWIRStatus(selectedWIR.id, 'Rectification In Progress', 'Remedial work commenced on site', 'ABC Civil Works')}
+                    className="px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                  >
+                    Start Rectification
+                  </button>
+                )}
+
+                {/* If rectification -> can resubmit */}
+                {selectedWIR.status === 'Rectification In Progress' && (
+                  <button
+                    onClick={() => updateWIRStatus(selectedWIR.id, 'Resubmitted', 'Corrective action verified by contractor QC', 'ABC Civil Works')}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                  >
+                    Resubmit for Reinspection
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Confirm action modal */}
+      {/* Action Dialog (for Rejection reason) */}
       {actionModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setActionModal(null)} />
-          <div className="relative bg-white rounded-lg border border-[#E5E7EB] shadow-lg w-[480px] p-6">
-            <h3 className="text-base font-semibold text-[#20252D] mb-1">
-              Inspection Action: {actionModal.newStatus}
-            </h3>
-            <p className="text-sm text-[#697586] mb-4">
-              WIR ID: <span className="font-mono text-[#315EFB] font-medium">{actionModal.wirId}</span>
-            </p>
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-[#697586] mb-1">
-                {actionModal.requiresNote ? 'Rejection Reason / Non-Compliance Finding (mandatory)' : 'Inspector Notes (optional)'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4">
+            <div>
+              <h4 className="text-sm font-bold text-slate-900">
+                Reject Inspection Request ({actionModal.wirId})
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                A valid technical rejection reason is mandatory to enforce accountability.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                Rejection Reason / Defect Specification *
               </label>
               <textarea
+                rows={3}
                 value={actionModal.note}
                 onChange={e => setActionModal({ ...actionModal, note: e.target.value })}
-                rows={3}
-                placeholder={
-                  actionModal.newStatus === 'Rejected'
-                    ? 'State the technical code violation, tolerance deviation or defect observed (e.g. stirrup spacing 250mm vs specified 150mm)…'
-                    : 'Add inspection observations or sign-off notes…'
-                }
-                className="w-full text-sm border border-[#E5E7EB] rounded px-3 py-2 focus:outline-none focus:border-[#315EFB] resize-none"
+                placeholder="e.g. Rebar spacing non-compliant with drawing IS 456; cover blocks missing..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none text-slate-900"
               />
             </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setActionModal(null)} className="px-3 py-1.5 text-sm text-[#697586] border border-[#E5E7EB] rounded hover:bg-gray-50">Cancel</button>
+
+            <div className="flex justify-end gap-2 pt-2">
               <button
-                onClick={() => {
-                  if (actionModal.requiresNote && !actionModal.note.trim()) return;
-                  confirmTransition();
-                }}
-                disabled={actionModal.requiresNote && !actionModal.note.trim()}
-                className="px-3 py-1.5 text-sm text-white bg-[#315EFB] rounded hover:bg-blue-700 disabled:opacity-50 font-medium"
+                onClick={() => setActionModal(null)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
               >
-                Confirm
+                Cancel
+              </button>
+              <button
+                disabled={!actionModal.note.trim()}
+                onClick={handleExecuteAction}
+                className={`px-4 py-1.5 text-xs font-bold rounded-xl text-white transition-all ${
+                  actionModal.note.trim() ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-300 cursor-not-allowed'
+                }`}
+              >
+                Confirm Rejection
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-// ── WIR Detail Drawer ─────────────────────────────────────────
-function WIRDetailDrawer({
-  wir,
-  onClose,
-  onTransition,
-}: {
-  wir: WIR;
-  onClose: () => void;
-  onTransition: (id: string, status: WIRStatus) => void;
-}) {
-  const project = PROJECTS.find(p => p.id === wir.projectId);
-  const contractor = CONTRACTORS.find(c => c.id === wir.contractorId);
-  const availableTransitions = VALID_TRANSITIONS[wir.status] ?? [];
-
-  return (
-    <Drawer
-      open
-      onClose={onClose}
-      title={wir.id}
-      subtitle={`${project?.name} · ${wir.tower}`}
-      width="600px"
-    >
-      {/* Status + actions */}
-      <DrawerSection title="Review status & actions">
-        <div className="flex items-center gap-3 mb-3 flex-wrap">
-          <StatusBadge status={wir.status} />
-          {wir.slaBreach && wir.status !== 'Approved' && <OverdueBadge />}
-          {wir.firstPassResult !== 'Pending' && (
-            <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded border',
-              wir.firstPassResult === 'Pass'
-                ? 'text-[#16805D] bg-green-50 border-green-200'
-                : 'text-[#C63F43] bg-red-50 border-red-200'
-            )}>
-              {wir.firstPassResult === 'Pass' ? '1st-pass Approved' : '1st-pass Rejected'}
-            </span>
-          )}
-        </div>
-
-        {availableTransitions.length > 0 && (
-          <div className="bg-[#F9FAFB] p-3 rounded border border-[#E5E7EB]">
-            <p className="text-xs font-medium text-[#697586] mb-2">Available QA actions:</p>
-            <div className="flex flex-wrap gap-2">
-              {availableTransitions.map(status => (
-                <button
-                  key={status}
-                  onClick={() => onTransition(wir.id, status)}
-                  className={clsx(
-                    'text-xs px-3 py-1.5 rounded border font-medium transition-colors',
-                    status === 'Approved'
-                      ? 'bg-[#16805D] text-white border-[#16805D] hover:bg-green-800'
-                      : status === 'Rejected'
-                      ? 'bg-[#C63F43] text-white border-[#C63F43] hover:bg-red-800'
-                      : 'bg-white text-[#315EFB] border-[#315EFB] hover:bg-blue-50'
-                  )}
-                >
-                  {status === 'Approved' ? 'Approve Inspection' :
-                   status === 'Rejected' ? 'Reject Inspection' :
-                   status === 'Rectification In Progress' ? 'Start Rectification' :
-                   status === 'Resubmitted' ? 'Resubmit for Inspection' :
-                   status}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </DrawerSection>
-
-      {/* Details */}
-      <DrawerSection title="Inspection details">
-        <div className="border border-[#E5E7EB] rounded-lg overflow-hidden">
-          <FieldRow label="Project" value={project?.name ?? '—'} />
-          <FieldRow label="Location" value={`${project?.city} · ${wir.tower}`} />
-          <FieldRow label="Work package / activity" value={wir.activity} />
-          <FieldRow label="Responsible contractor" value={contractor?.name ?? '—'} />
-          <FieldRow label="Submitted date" value={wir.submittedDate} />
-          <FieldRow label="Assigned reviewer" value={wir.reviewer} />
-          <FieldRow label="Turnaround / Days awaiting" value={wir.daysAwaiting > 0 ? `${wir.daysAwaiting} days` : '0 days (decision logged)'} />
-        </div>
-      </DrawerSection>
-
-      {/* Rejection reason */}
-      {wir.rejectionReason && (
-        <DrawerSection title="Rejection reason & code non-compliance">
-          <div className="bg-red-50 border border-red-200 rounded p-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#C63F43] mb-1">
-              <AlertTriangle size={13} />
-              <span>Inspection Rejection Finding</span>
-            </div>
-            <p className="text-sm text-[#C63F43] font-medium leading-relaxed">{wir.rejectionReason}</p>
-          </div>
-        </DrawerSection>
-      )}
-
-      {/* Inspection notes */}
-      {wir.inspectionNotes && (
-        <DrawerSection title="Site QA observations">
-          <p className="text-sm text-[#20252D] bg-[#F9FAFB] border border-[#E5E7EB] rounded p-3">
-            {wir.inspectionNotes}
-          </p>
-        </DrawerSection>
-      )}
-
-      {/* Inspection Artifacts & Evidence */}
-      <DrawerSection title="Evidence & inspection checklist">
-        {wir.sitePhoto ? (
-          <div className="space-y-3">
-            <SitePhotoCard photo={wir.sitePhoto} title={`Inspection Site Evidence — ${wir.id}`} />
-            <div className="grid grid-cols-2 gap-2">
-              <div className="border border-[#CBD5E1] rounded-xl p-2.5 bg-[#F8FAFC] flex items-start gap-2">
-                <Camera size={15} className="text-[#0F766E] flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-bold text-[#0F172A]">Pre-Pour Verification Photo</p>
-                  <p className="text-[11px] text-[#64748B]">Checklist #{wir.id}-SITE-PHOTO</p>
-                </div>
-              </div>
-              <div className="border border-[#CBD5E1] rounded-xl p-2.5 bg-[#F8FAFC] flex items-start gap-2">
-                <FileCheck size={15} className="text-[#16805D] flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-bold text-[#0F172A]">Bar Bending / Pour Log</p>
-                  <p className="text-[11px] text-[#64748B]">Signoff sheet signed by QA</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="border border-[#E5E7EB] rounded p-2.5 bg-[#F9FAFB] flex items-start gap-2">
-              <Camera size={16} className="text-[#315EFB] flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-medium text-[#20252D]">Pre-Pour Verification Photo</p>
-                <p className="text-[11px] text-[#8792A2]">Checklist attachment #{wir.id}-01.jpg</p>
-              </div>
-            </div>
-            <div className="border border-[#E5E7EB] rounded p-2.5 bg-[#F9FAFB] flex items-start gap-2">
-              <FileCheck size={16} className="text-[#16805D] flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-medium text-[#20252D]">Bar Bending / Pour Log</p>
-                <p className="text-[11px] text-[#8792A2]">Signoff sheet signed by QA</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </DrawerSection>
-
-      {/* Activity history */}
-      <DrawerSection title="Full inspection activity log">
-        <ActivityTimeline entries={wir.history} />
-      </DrawerSection>
-    </Drawer>
   );
 }

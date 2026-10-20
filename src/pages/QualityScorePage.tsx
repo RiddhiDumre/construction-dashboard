@@ -1,21 +1,26 @@
 // ============================================================
-// QUALITY SCORE PAGE
+// PAGE 4 — AUDIT & QUALITY (Quality Score & Audit Assurance)
+// Integrates Quality Score Calculation & Full Audit Register
 // ============================================================
 
 import React, { useState, useMemo } from 'react';
+import {
+  Award, Shield, SlidersHorizontal, ArrowLeftRight, Check,
+  LineChart as LineChartIcon, Info, ExternalLink, Calendar,
+  ChevronRight, Building2, User, Search, Filter, AlertTriangle
+} from 'lucide-react';
 import clsx from 'clsx';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Info, Settings, ArrowLeftRight, Check } from 'lucide-react';
 import { useApp } from '../store/appStore';
-import { calcQualityScore, getRAGStatus, getHistoricalScoresForProjects } from '../data/calculations';
-import { PROJECTS, AUDIT_RECORDS, type ScoreWeights, DEFAULT_WEIGHTS } from '../data/seedData';
 import {
-  StatusDot, ScoreBar, FilterSelect, PageHeader,
-} from '../components/ui';
-
-const PROJECT_OPTIONS = PROJECTS.map(p => ({ value: p.id, label: p.name }));
+  calcQualityScore, getRAGStatus, getHistoricalScoresForProjects,
+  getAllProjectMetrics,
+} from '../data/calculations';
+import {
+  PROJECTS, AUDIT_RECORDS, type Audit, type ScoreWeights, DEFAULT_WEIGHTS,
+} from '../data/seedData';
 
 const CHART_COLORS: Record<string, string> = {
   'Meridian Heights': '#315EFB',
@@ -24,469 +29,511 @@ const CHART_COLORS: Record<string, string> = {
   'Riverstone Towers': '#C63F43',
   'Harbour Point': '#7C3AED',
   'Summit Greens': '#0891B2',
+  'Vivanta Sereno': '#D97706',
 };
 
 export function QualityScorePage() {
-  const { state, setFilter } = useApp();
-  const [showSettings, setShowSettings] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
-  const [compareProjectA, setCompareProjectA] = useState('P004'); // Riverstone Towers (struggling)
-  const [compareProjectB, setCompareProjectB] = useState('P005'); // Harbour Point (healthy)
-  const [weights, setWeights] = useState<ScoreWeights>(state.weights);
-  const [draftWeights, setDraftWeights] = useState<ScoreWeights>(state.weights);
-  const [trendProjects, setTrendProjects] = useState(PROJECTS.map(p => p.id));
+  const { state, setWeightsModalOpen, selectProject, selectAudit } = useApp();
 
-  const { dispatch } = useApp();
+  const [activeTab, setActiveTab] = useState<'overview' | 'audits'>('overview');
+  const [auditTypeFilter, setAuditTypeFilter] = useState<'All' | 'Internal' | 'External'>('All');
+  const [auditSearch, setAuditSearch] = useState('');
+  const [trendProjects, setTrendProjects] = useState(['P004', 'P001', 'P002', 'P005', 'P007']);
 
-  const allScores = useMemo(() =>
-    PROJECTS.map(p => {
-      const bd = calcQualityScore(p.id, weights, state.wirs, state.ncs);
-      return { project: p, breakdown: bd, ragStatus: getRAGStatus(bd.finalScore) };
-    }).sort((a, b) => a.breakdown.finalScore - b.breakdown.finalScore),
-  [weights, state.wirs, state.ncs]);
+  // All projects quality metrics
+  const allMetrics = useMemo(
+    () => getAllProjectMetrics(state.weights, state.wirs, state.ncs),
+    [state.weights, state.wirs, state.ncs]
+  );
 
+  // Average quality score
+  const avgScore = useMemo(() => {
+    return Math.round(allMetrics.reduce((acc, m) => acc + m.qualityScore, 0) / allMetrics.length);
+  }, [allMetrics]);
+
+  // Average WIR pass rate
+  const avgWIRPass = useMemo(() => {
+    return Math.round(allMetrics.reduce((acc, m) => acc + m.wirPassRate, 0) / allMetrics.length);
+  }, [allMetrics]);
+
+  // Average NC health
+  const avgNCHealth = useMemo(() => {
+    return Math.round(allMetrics.reduce((acc, m) => acc + m.breakdown.ncComponent, 0) / allMetrics.length);
+  }, [allMetrics]);
+
+  // Historical trend data
   const trendData = useMemo(() => getHistoricalScoresForProjects(trendProjects), [trendProjects]);
 
-  const weightsTotal = draftWeights.wirPassRate + draftWeights.ncHealth + draftWeights.auditScore;
+  // Audit Register Filtered
+  const filteredAudits = useMemo(() => {
+    return AUDIT_RECORDS.filter(a => {
+      if (auditTypeFilter !== 'All' && a.type !== auditTypeFilter) return false;
+      if (auditSearch.trim()) {
+        const q = auditSearch.toLowerCase();
+        const proj = PROJECTS.find(p => p.id === a.projectId);
+        if (!a.id.toLowerCase().includes(q) &&
+            !a.auditor.toLowerCase().includes(q) &&
+            !proj?.name.toLowerCase().includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [auditTypeFilter, auditSearch]);
 
-  function applyWeights() {
-    if (weightsTotal !== 100) return;
-    setWeights(draftWeights);
-    dispatch({ type: 'SET_WEIGHTS', weights: draftWeights });
-    setShowSettings(false);
-  }
-
-  const filteredProject = state.filters.project;
-  const selectedProjectScore = filteredProject
-    ? allScores.find(s => s.project.id === filteredProject)
-    : null;
-
-  // Comparison projects data
-  const scoreA = allScores.find(s => s.project.id === compareProjectA);
-  const scoreB = allScores.find(s => s.project.id === compareProjectB);
+  const completedAudits = AUDIT_RECORDS.filter(a => a.status === 'Completed');
+  const totalFindings = completedAudits.reduce((acc, a) => acc + a.findingsRaised, 0);
+  const openCAs = completedAudits.reduce((acc, a) => acc + a.outstandingCAs, 0);
 
   return (
-    <div>
-      <div className="flex items-start justify-between mb-5 flex-wrap gap-2">
-        <PageHeader
-          title="Quality Score"
-          subtitle="Composite quality performance index per project calculated from WIRs, NC Health & Audits."
-        />
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setShowCompare(!showCompare); if (showSettings) setShowSettings(false); }}
-            className={clsx(
-              'flex items-center gap-1.5 text-xs border rounded px-3 py-1.5 transition-colors',
-              showCompare ? 'bg-[#315EFB] text-white border-[#315EFB]' : 'text-[#697586] border-[#E5E7EB] hover:bg-gray-50'
-            )}
-          >
-            <ArrowLeftRight size={12} />
-            Compare projects
-          </button>
-          <button
-            onClick={() => { setShowSettings(!showSettings); if (showCompare) setShowCompare(false); }}
-            className={clsx(
-              'flex items-center gap-1.5 text-xs border rounded px-3 py-1.5 transition-colors',
-              showSettings ? 'bg-gray-800 text-white border-gray-800' : 'text-[#697586] border-[#E5E7EB] hover:bg-gray-50'
-            )}
-          >
-            <Settings size={12} />
-            Score weights ({weights.wirPassRate}/{weights.ncHealth}/{weights.auditScore})
-          </button>
-        </div>
-      </div>
-
-      {/* Comparison Mode Panel */}
-      {showCompare && scoreA && scoreB && (
-        <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 mb-6">
-          <div className="flex items-center justify-between pb-4 border-b border-[#E5E7EB] mb-4">
-            <div>
-              <h3 className="text-sm font-semibold text-[#20252D]">Side-by-Side Project Quality Comparison</h3>
-              <p className="text-xs text-[#8792A2] mt-0.5">Compare component breakdown, pass rate, NC burden, and audit scores between two projects.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-[#697586]">Project A:</span>
-                <select
-                  value={compareProjectA}
-                  onChange={e => setCompareProjectA(e.target.value)}
-                  className="border border-[#E5E7EB] rounded px-2 py-1 text-xs font-medium"
-                >
-                  {PROJECTS.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <span className="text-xs text-[#8792A2]">vs</span>
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-[#697586]">Project B:</span>
-                <select
-                  value={compareProjectB}
-                  onChange={e => setCompareProjectB(e.target.value)}
-                  className="border border-[#E5E7EB] rounded px-2 py-1 text-xs font-medium"
-                >
-                  {PROJECTS.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            {/* Project A Card */}
-            <div className="border border-[#E5E7EB] rounded-lg p-4 bg-[#FAFAFC]">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <StatusDot status={scoreA.ragStatus} size="md" />
-                  <span className="text-base font-semibold text-[#20252D]">{scoreA.project.name}</span>
-                  <span className="text-xs text-[#8792A2]">({scoreA.project.city})</span>
-                </div>
-                <div className="text-2xl font-bold" style={{ color: scoreA.ragStatus === 'green' ? '#16805D' : scoreA.ragStatus === 'amber' ? '#B7791F' : '#C63F43' }}>
-                  {scoreA.breakdown.finalScore}<span className="text-xs font-normal text-[#8792A2]">/100</span>
-                </div>
-              </div>
-              <div className="space-y-3 mt-4">
-                <ScoreBar label="WIR Pass Rate" score={scoreA.breakdown.wirComponent} weight={weights.wirPassRate} contribution={scoreA.breakdown.wirComponent * (weights.wirPassRate / 100)} />
-                <ScoreBar label="NC Health" score={scoreA.breakdown.ncComponent} weight={weights.ncHealth} contribution={scoreA.breakdown.ncComponent * (weights.ncHealth / 100)} />
-                {scoreA.breakdown.auditAvailable ? (
-                  <ScoreBar label="Latest Audit" score={scoreA.breakdown.auditComponent ?? 0} weight={weights.auditScore} contribution={(scoreA.breakdown.auditComponent ?? 0) * (weights.auditScore / 100)} />
-                ) : (
-                  <div className="text-xs text-[#8792A2] italic py-1">Audit data unavailable (renormalised)</div>
-                )}
-              </div>
-            </div>
-
-            {/* Project B Card */}
-            <div className="border border-[#E5E7EB] rounded-lg p-4 bg-[#FAFAFC]">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <StatusDot status={scoreB.ragStatus} size="md" />
-                  <span className="text-base font-semibold text-[#20252D]">{scoreB.project.name}</span>
-                  <span className="text-xs text-[#8792A2]">({scoreB.project.city})</span>
-                </div>
-                <div className="text-2xl font-bold" style={{ color: scoreB.ragStatus === 'green' ? '#16805D' : scoreB.ragStatus === 'amber' ? '#B7791F' : '#C63F43' }}>
-                  {scoreB.breakdown.finalScore}<span className="text-xs font-normal text-[#8792A2]">/100</span>
-                </div>
-              </div>
-              <div className="space-y-3 mt-4">
-                <ScoreBar label="WIR Pass Rate" score={scoreB.breakdown.wirComponent} weight={weights.wirPassRate} contribution={scoreB.breakdown.wirComponent * (weights.wirPassRate / 100)} />
-                <ScoreBar label="NC Health" score={scoreB.breakdown.ncComponent} weight={weights.ncHealth} contribution={scoreB.breakdown.ncComponent * (weights.ncHealth / 100)} />
-                {scoreB.breakdown.auditAvailable ? (
-                  <ScoreBar label="Latest Audit" score={scoreB.breakdown.auditComponent ?? 0} weight={weights.auditScore} contribution={(scoreB.breakdown.auditComponent ?? 0) * (weights.auditScore / 100)} />
-                ) : (
-                  <div className="text-xs text-[#8792A2] italic py-1">Audit data unavailable (renormalised)</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 mb-5 shadow-sm">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-semibold text-[#20252D]">Configure Quality Score Weights</h3>
-              <p className="text-xs text-[#8792A2] mt-0.5">Prototype configurable weights. Must total 100%.</p>
-            </div>
-            <span className={clsx('text-xs font-semibold px-2 py-0.5 rounded border',
-              weightsTotal === 100 ? 'text-[#16805D] bg-green-50 border-green-200' : 'text-[#C63F43] bg-red-50 border-red-200'
-            )}>
-              Total: {weightsTotal}%
+    <div className="space-y-6">
+      {/* ============================================================
+          PAGE HEADER
+          ============================================================ */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E5E7EB]">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#20252D]">
+              Audit & Quality
+            </h1>
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+              Assurance Layer
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-6 mb-4">
-            {[
-              { key: 'wirPassRate' as const, label: 'WIR First-Time Pass Rate', desc: 'Approved on 1st inspection / decided WIRs' },
-              { key: 'ncHealth' as const, label: 'NC Health & Closure', desc: 'Penalties for open NCs & overdue age' },
-              { key: 'auditScore' as const, label: 'Latest Audit Result', desc: 'Normalised 0–100 from internal/external audit' },
-            ].map(({ key, label, desc }) => (
-              <div key={key} className="border border-[#E5E7EB] rounded p-3 bg-[#F9FAFB]">
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-medium text-[#20252D]">{label}</label>
-                  <span className="text-xs font-bold text-[#315EFB]">{draftWeights[key]}%</span>
-                </div>
-                <p className="text-[11px] text-[#8792A2] mb-2">{desc}</p>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={draftWeights[key]}
-                  onChange={e => setDraftWeights({ ...draftWeights, [key]: Number(e.target.value) })}
-                  className="w-full cursor-pointer accent-[#315EFB]"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={applyWeights}
-              disabled={weightsTotal !== 100}
-              className="text-xs text-white bg-[#315EFB] px-3.5 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50 font-medium"
-            >
-              Apply and recalculate portfolio
-            </button>
-            <button
-              onClick={() => { setDraftWeights(DEFAULT_WEIGHTS); }}
-              className="text-xs text-[#697586] border border-[#E5E7EB] px-3 py-1.5 rounded hover:bg-gray-50"
-            >
-              Reset defaults (40/35/25)
-            </button>
-          </div>
+          <p className="text-xs text-[#697586] mt-0.5">
+            Transparent quality index derivation from WIR first-pass, NC health & third-party audits.
+          </p>
         </div>
-      )}
 
-      {/* Filters */}
-      <div className="flex items-center gap-4 mb-5">
-        <FilterSelect
-          label="Filter by project"
-          value={state.filters.project}
-          options={PROJECT_OPTIONS}
-          onChange={v => setFilter('project', v)}
-        />
-        {state.filters.project && (
-          <button onClick={() => setFilter('project', '')} className="text-xs text-[#697586] hover:text-[#20252D] underline">
-            Show all projects
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setWeightsModalOpen(true)}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#E5E7EB] bg-white hover:bg-slate-50 text-xs font-bold text-[#20252D] transition-colors shadow-2xs"
+          >
+            <SlidersHorizontal size={13} className="text-blue-600" />
+            <span>Configure Weights ({state.weights.wirPassRate}% / {state.weights.ncHealth}% / {state.weights.auditScore}%)</span>
           </button>
-        )}
+        </div>
       </div>
 
-      {/* All projects overview */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-xs mb-6">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+      {/* ============================================================
+          QUALITY & AUDIT SUMMARY KPI CARDS (6 Cards)
+          ============================================================ */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Portfolio Quality Score
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-[#20252D]">{avgScore}</span>
+            <span className="text-xs text-slate-400">/ 100</span>
+          </div>
+          <p className="text-[11px] text-[#16805D] mt-0.5 font-semibold">
+            Composite index
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            WIR Pass Rate ({state.weights.wirPassRate}%)
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-blue-600">{avgWIRPass}%</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            First-time signoff
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            NC Health ({state.weights.ncHealth}%)
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-amber-600">{avgNCHealth}</span>
+            <span className="text-xs text-slate-400">/ 100</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Defect penalty score
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Audits Completed
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-black text-[#16805D]">{completedAudits.length}</span>
+            <span className="text-xs text-slate-400">of {AUDIT_RECORDS.length}</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            1 Scheduled
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Total Audit Findings
+          </span>
+          <span className="text-xl font-black text-[#20252D]">{totalFindings}</span>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Internal & External
+          </p>
+        </div>
+
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#697586] block mb-1">
+            Outstanding CAs
+          </span>
+          <span className="text-xl font-black text-[#C63F43]">{openCAs}</span>
+          <p className="text-[11px] text-[#C63F43] mt-0.5 font-semibold">
+            Action plans pending
+          </p>
+        </div>
+      </div>
+
+      {/* ============================================================
+          QUALITY SCORE METHODOLOGY EXPLANATION BANNER
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Info size={16} />
+          </div>
+          <div className="text-xs">
+            <p className="font-bold text-[#20252D]">
+              Quality Score Formula & Deterministic Derivation
+            </p>
+            <p className="text-[#697586] mt-0.5 leading-relaxed">
+              Calculated out of 100: <strong className="text-slate-800">{state.weights.wirPassRate}% WIR Pass Rate</strong> + <strong className="text-slate-800">{state.weights.ncHealth}% NC Resolution Health</strong> (penalties for critical severity & overdue weeks) + <strong className="text-slate-800">{state.weights.auditScore}% Latest Audit Score</strong> (normalised). Never uses manual unexplained ratings.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setWeightsModalOpen(true)}
+          className="px-3.5 py-1.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-lg transition-colors whitespace-nowrap self-start md:self-center shadow-2xs"
+        >
+          Adjust Scoring Weights
+        </button>
+      </div>
+
+      {/* ============================================================
+          6-MONTH QUALITY SCORE PROGRESSION CHART
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#20252D]">
+              Quality Score 6-Month Progression
+            </h3>
+            <p className="text-xs text-[#697586]">
+              Historical trend tracking compliance deterioration or recovery across projects
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {PROJECTS.map(p => {
+              const active = trendProjects.includes(p.id);
+              const color = CHART_COLORS[p.name] ?? '#315EFB';
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    if (active) {
+                      if (trendProjects.length > 1) {
+                        setTrendProjects(trendProjects.filter(id => id !== p.id));
+                      }
+                    } else {
+                      setTrendProjects([...trendProjects, p.id]);
+                    }
+                  }}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all',
+                    active
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  )}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                  <span>{p.name.split(' ')[0]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="h-56 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trendData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
+              <YAxis domain={[30, 100]} tick={{ fontSize: 11, fill: '#64748B' }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#FFFFFF',
+                  borderColor: '#E2E8F0',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                  fontSize: '12px',
+                }}
+              />
+              {trendProjects.map(pid => {
+                const proj = PROJECTS.find(p => p.id === pid);
+                if (!proj) return null;
+                const color = CHART_COLORS[proj.name] ?? '#315EFB';
+                return (
+                  <Line
+                    key={pid}
+                    type="monotone"
+                    dataKey={proj.name}
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: color }}
+                    activeDot={{ r: 5 }}
+                  />
+                );
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ============================================================
+          PROJECT QUALITY COMPARISON TABLE
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-slate-50/50 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-[#20252D]">
+              Project Quality Score Breakdown
+            </h3>
+            <p className="text-xs text-[#697586]">
+              Detailed component contributions for all portfolio projects
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-slate-50/70 text-[#697586] font-semibold">
+                <th className="py-3 px-4">Project & City</th>
+                <th className="py-3 px-3">Quality Score</th>
+                <th className="py-3 px-3">Prev Period</th>
+                <th className="py-3 px-3">Delta</th>
+                <th className="py-3 px-3">WIR Component ({state.weights.wirPassRate}%)</th>
+                <th className="py-3 px-3">NC Component ({state.weights.ncHealth}%)</th>
+                <th className="py-3 px-3">Latest Audit ({state.weights.auditScore}%)</th>
+                <th className="py-3 px-4">Data Completeness</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E5E7EB]">
+              {allMetrics.map(m => (
+                <tr
+                  key={m.project.id}
+                  onClick={() => selectProject(m.project.id)}
+                  className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
+                >
+                  <td className="py-3.5 px-4">
+                    <span className="font-bold text-[#20252D] group-hover:text-blue-600 transition-colors">
+                      {m.project.name}
+                    </span>
+                    <p className="text-[11px] text-[#697586]">{m.project.city}</p>
+                  </td>
+
+                  <td className="py-3.5 px-3">
+                    <span className={clsx(
+                      'font-black text-xs px-2 py-0.5 rounded-md border',
+                      m.ragStatus === 'green' ? 'bg-emerald-50 text-[#16805D] border-emerald-200' :
+                      m.ragStatus === 'amber' ? 'bg-amber-50 text-[#B7791F] border-amber-200' :
+                      'bg-rose-50 text-[#C63F43] border-rose-200'
+                    )}>
+                      {m.qualityScore}/100
+                    </span>
+                  </td>
+
+                  <td className="py-3.5 px-3 text-slate-600 font-mono">
+                    {m.prevScore ? `${m.prevScore}/100` : '—'}
+                  </td>
+
+                  <td className="py-3.5 px-3 font-semibold">
+                    {m.scoreDelta !== null ? (
+                      <span className={m.scoreDelta >= 0 ? 'text-[#16805D]' : 'text-[#C63F43]'}>
+                        {m.scoreDelta > 0 ? `+${m.scoreDelta}` : `${m.scoreDelta}`} pts
+                      </span>
+                    ) : '—'}
+                  </td>
+
+                  <td className="py-3.5 px-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-800">{m.wirPassRate}%</span>
+                      <span className="text-[10px] text-slate-400">pass rate</span>
+                    </div>
+                  </td>
+
+                  <td className="py-3.5 px-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-800">{m.breakdown.ncComponent}/100</span>
+                      <span className="text-[10px] text-slate-400">health</span>
+                    </div>
+                  </td>
+
+                  <td className="py-3.5 px-3">
+                    {m.breakdown.auditComponent !== null ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-800">{m.breakdown.auditComponent}%</span>
+                        <span className="text-[10px] text-slate-400">score</span>
+                      </div>
+                    ) : (
+                      <span className="text-amber-600 font-medium text-[11px]">Audit Pending</span>
+                    )}
+                  </td>
+
+                  <td className="py-3.5 px-4">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      m.breakdown.auditAvailable
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {m.breakdown.auditAvailable ? '100% Complete' : 'Renormalised (No Audit)'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ============================================================
+          AUDIT REGISTER SECTION (Internal & External Audits)
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-[#20252D]">
+              Audit Register ({filteredAudits.length} Audits)
+            </h3>
+            <p className="text-xs text-[#697586]">
+              Internal QA inspections and third-party assessments (Bureau Veritas, SGS, TÜV)
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-[#20252D]">Project Quality Scores</h2>
-            <div className="relative group">
-              <Info size={13} className="text-[#8792A2] cursor-help" />
-              <div className="absolute left-0 top-5 bg-white border border-[#E5E7EB] rounded-lg p-3 text-xs text-[#697586] w-72 z-20 hidden group-hover:block shadow-md">
-                <strong>Scoring Methodology:</strong>
-                <ul className="mt-1 space-y-0.5 list-disc list-inside">
-                  <li>WIR Component ({weights.wirPassRate}%): 1st-pass approval rate</li>
-                  <li>NC Component ({weights.ncHealth}%): 100 - severity & overdue points</li>
-                  <li>Audit Component ({weights.auditScore}%): latest audit score</li>
-                </ul>
-                <p className="mt-1.5 text-[11px] text-[#8792A2]">Missing audit rule: renormalises remaining weights.</p>
-              </div>
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={auditSearch}
+                onChange={e => setAuditSearch(e.target.value)}
+                placeholder="Search audits…"
+                className="h-8 pl-7 pr-3 text-xs bg-white border border-[#E5E7EB] rounded-lg outline-none text-[#20252D] w-36 sm:w-44"
+              />
+            </div>
+
+            <div className="flex border border-[#E5E7EB] rounded-lg overflow-hidden bg-white">
+              {(['All', 'Internal', 'External'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setAuditTypeFilter(t)}
+                  className={`px-3 py-1 text-xs font-semibold transition-colors ${
+                    auditTypeFilter === t ? 'bg-[#20252D] text-white' : 'text-[#697586] hover:bg-slate-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </div>
-          <span className="text-xs text-[#8792A2]">Click a project card to inspect audit logs</span>
         </div>
-        <div className="divide-y divide-[#F3F4F6]">
-          {allScores
-            .filter(s => !filteredProject || s.project.id === filteredProject)
-            .map(({ project, breakdown, ragStatus }) => {
-              const wirContrib = breakdown.wirComponent * (weights.wirPassRate / 100);
-              const ncContrib = breakdown.ncComponent * (weights.ncHealth / 100);
-              const auditContrib = breakdown.auditComponent !== null ? breakdown.auditComponent * (weights.auditScore / 100) : 0;
-              const isSelected = filteredProject === project.id;
-              return (
-                <div
-                  key={project.id}
-                  className={clsx(
-                    'px-4 py-4 cursor-pointer hover:bg-[#F9FAFB] transition-colors',
-                    isSelected && 'bg-blue-50/20'
-                  )}
-                  onClick={() => setFilter('project', isSelected ? '' : project.id)}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <img
-                        src={project.image}
-                        alt={project.name}
-                        className="w-9 h-9 rounded-lg object-cover border border-[#E2E8F0] shadow-2xs flex-shrink-0"
-                      />
-                      <StatusDot status={ragStatus} size="sm" />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-bold text-[#0F172A]">{project.name}</span>
-                          {isSelected && (
-                            <span className="text-[10px] bg-blue-100 text-[#315EFB] font-semibold px-1.5 py-0.2 rounded ml-1">
-                              Selected
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-[#64748B]">{project.city} · {project.stage} Stage</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {!breakdown.auditAvailable && (
-                        <span className="text-xs text-[#8792A2] bg-[#F3F4F6] px-2 py-0.5 rounded border border-[#E5E7EB]">
-                          No audit data — renormalised
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-slate-50/70 text-[#697586] font-semibold">
+                <th className="py-3 px-4">Audit ID & Type</th>
+                <th className="py-3 px-3">Project & Location</th>
+                <th className="py-3 px-3">Auditor / Agency</th>
+                <th className="py-3 px-3">Audit Date</th>
+                <th className="py-3 px-3">Rating Score</th>
+                <th className="py-3 px-3">Findings Raised</th>
+                <th className="py-3 px-3">Open CAs</th>
+                <th className="py-3 px-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E5E7EB]">
+              {filteredAudits.map(audit => {
+                const proj = PROJECTS.find(p => p.id === audit.projectId);
+                return (
+                  <tr
+                    key={audit.id}
+                    onClick={() => selectAudit(audit.id)}
+                    className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-slate-900 group-hover:text-blue-600">
+                          {audit.id}
                         </span>
-                      )}
-                      <span className={clsx('text-2xl font-semibold',
-                        ragStatus === 'green' ? 'text-[#16805D]' : ragStatus === 'amber' ? 'text-[#B7791F]' : 'text-[#C63F43]'
-                      )}>
-                        {breakdown.finalScore}
-                      </span>
-                      <span className="text-sm text-[#8792A2]">/100</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <ScoreBar
-                      label="WIR Pass Rate"
-                      score={breakdown.wirComponent}
-                      weight={weights.wirPassRate}
-                      contribution={wirContrib}
-                    />
-                    <ScoreBar
-                      label="NC Health"
-                      score={breakdown.ncComponent}
-                      weight={weights.ncHealth}
-                      contribution={ncContrib}
-                    />
-                    {breakdown.auditAvailable ? (
-                      <ScoreBar
-                        label="Latest Audit"
-                        score={breakdown.auditComponent ?? 0}
-                        weight={weights.auditScore}
-                        contribution={auditContrib}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-between text-xs py-1 text-[#8792A2]">
-                        <span>Latest Audit Result</span>
-                        <span>Component unavailable — weights renormalised</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                          audit.type === 'External' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {audit.type}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-        </div>
-      </div>
+                    </td>
 
-      {/* Project Audit Details (if selected) */}
-      {selectedProjectScore && (
-        <div className="bg-white border border-[#E5E7EB] rounded-lg mb-6">
-          <div className="px-4 py-3 border-b border-[#E5E7EB] flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-[#20252D]">
-              {selectedProjectScore.project.name} — Internal & External Audit Records
-            </h2>
-            <span className="text-xs text-[#697586]">Audit supports Quality Score component</span>
-          </div>
-          <div className="p-4">
-            {AUDIT_RECORDS.filter(a => a.projectId === selectedProjectScore.project.id).length === 0 ? (
-              <p className="text-sm text-[#697586] py-4 text-center">No audit records found for this project.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                      {['Audit Date', 'Type', 'Score', 'Rating', 'Findings', 'Open CAs', 'Status', 'Auditor', 'Audit Summary'].map(h => (
-                        <th key={h} className="text-left text-xs font-medium text-[#697586] px-3 py-2 whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {AUDIT_RECORDS.filter(a => a.projectId === selectedProjectScore.project.id)
-                      .sort((a, b) => b.auditDate.localeCompare(a.auditDate))
-                      .map(audit => (
-                        <tr key={audit.id} className="border-b border-[#F3F4F6] last:border-0">
-                          <td className="px-3 py-2.5 text-sm text-[#697586]">{audit.auditDate}</td>
-                          <td className="px-3 py-2.5 text-sm font-medium text-[#20252D]">{audit.type}</td>
-                          <td className="px-3 py-2.5">
-                            {audit.status === 'Completed' ? (
-                              <span className={clsx('text-sm font-semibold',
-                                audit.percentageScore >= 80 ? 'text-[#16805D]' : audit.percentageScore >= 60 ? 'text-[#B7791F]' : 'text-[#C63F43]'
-                              )}>
-                                {audit.percentageScore}%
-                              </span>
-                            ) : <span className="text-xs text-[#8792A2]">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-sm text-[#697586]">
-                            {audit.status === 'Completed' ? `${audit.rating}/5` : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-sm text-[#697586]">
-                            {audit.status === 'Completed' ? audit.findingsRaised : '—'}
-                          </td>
-                          <td className="px-3 py-2.5 text-sm text-[#697586]">
-                            {audit.status === 'Completed' ? (
-                              <span className={clsx(audit.outstandingCAs > 0 ? 'text-[#C63F43] font-medium' : '')}>
-                                {audit.outstandingCAs}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <span className={clsx('text-xs font-medium px-2 py-0.5 rounded border',
-                              audit.status === 'Completed' ? 'text-[#16805D] bg-green-50 border-green-200' :
-                              audit.status === 'In Progress' ? 'text-[#B7791F] bg-amber-50 border-amber-200' :
-                              'text-[#697586] bg-gray-50 border-gray-200'
-                            )}>
-                              {audit.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-sm text-[#697586]">{audit.auditor}</td>
-                          <td className="px-3 py-2.5 text-xs text-[#697586] max-w-xs truncate">{audit.notes ?? '—'}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                    <td className="py-3 px-3">
+                      <span className="font-bold text-slate-800">{proj?.name}</span>
+                      <p className="text-[11px] text-slate-500">{proj?.city}</p>
+                    </td>
 
-      {/* Trend Chart */}
-      <div className="bg-white border border-[#E5E7EB] rounded-lg p-5">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-base font-semibold text-[#20252D]">Quality Score historical progression (6 months)</h2>
-          <div className="flex flex-wrap gap-2">
-            {PROJECTS.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setTrendProjects(prev =>
-                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                )}
-                className={clsx(
-                  'text-xs px-2.5 py-1 rounded border transition-colors',
-                  trendProjects.includes(p.id) ? 'border-transparent text-white font-medium' : 'border-[#E5E7EB] text-[#697586] bg-white hover:bg-gray-50'
-                )}
-                style={trendProjects.includes(p.id) ? { backgroundColor: CHART_COLORS[p.name] } : {}}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
+                    <td className="py-3 px-3 font-medium text-slate-700">
+                      {audit.auditor}
+                    </td>
+
+                    <td className="py-3 px-3 text-slate-600">
+                      {audit.auditDate}
+                    </td>
+
+                    <td className="py-3 px-3">
+                      {audit.status === 'Completed' ? (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-black text-slate-900">{audit.percentageScore}/100</span>
+                          <span className="text-[10px] text-slate-400">({audit.rating.toFixed(1)}★)</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic">Scheduled</span>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-3 text-slate-700 font-semibold">
+                      {audit.findingsRaised}
+                    </td>
+
+                    <td className="py-3 px-3">
+                      <span className={`font-bold ${audit.outstandingCAs > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                        {audit.outstandingCAs}
+                      </span>
+                    </td>
+
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-between">
+                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                          audit.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {audit.status}
+                        </span>
+                        <ChevronRight size={13} className="text-slate-300 group-hover:text-slate-600" />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={trendData} margin={{ top: 5, right: 16, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11, fill: '#697586' }}
-              tickFormatter={m => {
-                const [, mo] = m.split('-');
-                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                return months[parseInt(mo) - 1];
-              }}
-            />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#697586' }} width={32} />
-            <Tooltip
-              contentStyle={{ fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 6 }}
-              formatter={(value: number, name: string) => [`${value}/100`, name]}
-            />
-            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-            {trendProjects.map(pid => {
-              const proj = PROJECTS.find(p => p.id === pid);
-              if (!proj) return null;
-              return (
-                <Line
-                  key={pid}
-                  type="monotone"
-                  dataKey={proj.name}
-                  stroke={CHART_COLORS[proj.name]}
-                  strokeWidth={2}
-                  dot={{ r: 3, strokeWidth: 2 }}
-                  activeDot={{ r: 5 }}
-                  connectNulls
-                />
-              );
-            })}
-          </LineChart>
-        </ResponsiveContainer>
       </div>
     </div>
   );
