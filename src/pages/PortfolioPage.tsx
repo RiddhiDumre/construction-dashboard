@@ -1,1057 +1,847 @@
 // ============================================================
-// PAGE 1 — OVERVIEW (Executive Bento Cockpit — Apple-Inspired)
-// Top: Numbers forced visible for CXO overview
-// 1 Row, 2-Column Bento Grid:
-//   Column 1: WIP Overview with Apple-style Building Elevation Infographic (slab-wise, with critical error on Floor 5)
-//   Column 2: Audit Infographic (Apple Activity Rings) + Main Critical Issues + Flats Sold Infographic
-// Zero vertical scrollbar, high-contrast bold numbers, minimal text.
+// PAGE 1 — PORTFOLIO AT A GLANCE (Overview)
+// Pixel-perfect match to the master executive design blueprint
 // ============================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  AlertTriangle, AlertCircle, TrendingDown, TrendingUp,
-  Building2, Layers, CheckCircle2, Clock, ShieldAlert, Award,
-  ChevronRight, X, DollarSign, ArrowRight, ArrowUpRight,
-  Maximize2, Eye, Flame
+  Building2, BarChart3, Home, ClipboardCheck, AlertTriangle,
+  ShieldCheck, MapPin, ChevronRight, ChevronLeft, ChevronDown,
+  Maximize2, ArrowRight
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useApp } from '../store/appStore';
-import {
-  getAllProjectMetrics, getOverviewPortfolioKPIs, getNeedsAttentionAlerts,
-  getCXOCommercialInventory, getPortfolioSlabMetrics,
-} from '../data/calculations';
-import { PROJECTS, TOWERS_DATA, FLOORS_DATA } from '../data/seedData';
 import { ProjectDetailDrawer } from '../components/ProjectDetailDrawer';
 
-const CITIES = [
-  'All locations',
-  'Mumbai',
-  'Thane',
-  'Navi Mumbai',
-  'Pune',
-  'Bengaluru',
-  'Hyderabad',
-  'Gurugram',
-];
-
-interface BuildingConfig {
-  id: string;
-  projectId: string;
-  projectName: string;
-  towerName: string;
-  city: string;
-  totalFloors: number;
-  completedFloors: number;
-  activeFloor: number;
-  criticalFloor?: {
-    floorNumber: number;
-    issue: string;
-    ncId: string;
-    wirId: string;
-    contractor: string;
-  };
-  delayDays: number;
-  status: 'On Track' | 'Delayed' | 'At Risk';
-}
-
 export function PortfolioPage() {
-  const {
-    state,
-    setFilter,
-    selectProject,
-    setTab,
-    selectNC,
-    selectWIR,
-  } = useApp();
+  const { state, setTab, selectProject, selectNC, selectWIR } = useApp();
 
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('T010'); // Riverstone Tower 1 (Showcase)
-  const [hoveredFloor, setHoveredFloor] = useState<{
-    towerName: string;
-    floorNumber: number;
-    status: string;
-    detail?: string;
-  } | null>(null);
+  const [activePeriod, setActivePeriod] = useState('Q3 FY25');
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [selectedCity, setSelectedCity] = useState('Mumbai');
 
-  const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
-  const [slabModalOpen, setSlabModalOpen] = useState(false);
-
-  const activeCity = state.filters.city || 'All locations';
-
-  // Dynamic Portfolio KPIs scoped to geographic selection
-  const kpis = useMemo(
-    () => getOverviewPortfolioKPIs(activeCity, state.weights, state.wirs, state.ncs),
-    [activeCity, state.weights, state.wirs, state.ncs]
-  );
-
-  // Commercial / Flats Sold Metrics for CXO
-  const commercialData = useMemo(
-    () => getCXOCommercialInventory(activeCity),
-    [activeCity]
-  );
-
-  // Slab Metrics
-  const slabData = useMemo(
-    () => getPortfolioSlabMetrics(activeCity),
-    [activeCity]
-  );
-
-  // Priority Operational Critical Issues
-  const alerts = useMemo(
-    () => getNeedsAttentionAlerts(activeCity, state.wirs, state.ncs, state.weights),
-    [activeCity, state.wirs, state.ncs, state.weights]
-  );
-
-  // Apple-style Skyline Buildings Data
-  const skylineBuildings: BuildingConfig[] = useMemo(() => [
-    {
-      id: 'T010',
-      projectId: 'P004',
-      projectName: 'Riverstone Towers',
-      towerName: 'Tower 1',
-      city: 'Gurugram',
-      totalFloors: 24,
-      completedFloors: 4,
-      activeFloor: 6,
-      criticalFloor: {
-        floorNumber: 5,
-        issue: 'Cube test 28d failure & column honeycombing',
-        ncId: 'NC-0001',
-        wirId: 'WIR-0021',
-        contractor: 'ABC Civil Works',
-      },
-      delayDays: -38,
-      status: 'Delayed',
-    },
-    {
-      id: 'T001',
-      projectId: 'P001',
-      projectName: 'Meridian Heights',
-      towerName: 'Tower A',
-      city: 'Mumbai',
-      totalFloors: 18,
-      completedFloors: 9,
-      activeFloor: 10,
-      delayDays: -3,
-      status: 'On Track',
-    },
-    {
-      id: 'T018',
-      projectId: 'P007',
-      projectName: 'Vivanta Sereno',
-      towerName: 'Tower 1',
-      city: 'Thane',
-      totalFloors: 15,
-      completedFloors: 9,
-      activeFloor: 10,
-      delayDays: 0,
-      status: 'On Track',
-    },
-    {
-      id: 'T004',
-      projectId: 'P002',
-      projectName: 'Northgate Residences',
-      towerName: 'Block 1',
-      city: 'Bengaluru',
-      totalFloors: 12,
-      completedFloors: 12,
-      activeFloor: 12,
-      delayDays: 3,
-      status: 'On Track',
-    },
-  ], []);
-
-  const activeBuilding = skylineBuildings.find(b => b.id === selectedBuildingId) || skylineBuildings[0];
+  const CITIES = ['Mumbai', 'Gurugram', 'Bengaluru', 'Pune', 'All locations'];
+  const PERIODS = ['Q3 FY25', 'Q2 FY25', 'Q1 FY25', 'FY24'];
 
   return (
-    <div className="h-full flex flex-col gap-2.5 overflow-hidden select-none">
+    <div className="space-y-4">
       {/* ============================================================
-          TOP SECTION: MACRO NUMBERS FORCED VISIBLE (CXO OVERVIEW)
-          Bold typography, high-impact cards with instant visibility
+          PAGE HEADER: Title, City Selector, Reporting Periods
           ============================================================ */}
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl p-2.5 shadow-xs flex-shrink-0">
-        <div className="flex items-center justify-between gap-3">
-          {/* City Scope Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-shrink-0">
-            {CITIES.map(city => {
-              const active =
-                activeCity.toLowerCase() === city.toLowerCase() ||
-                (city === 'All locations' && (activeCity === 'All locations' || activeCity === 'All Locations' || !activeCity));
-              return (
-                <button
-                  key={city}
-                  onClick={() => setFilter('city', city)}
-                  className={clsx(
-                    'px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border',
-                    active
-                      ? 'bg-[#0F172A] text-white border-[#0F172A] shadow-xs'
-                      : 'bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0] hover:text-[#0F172A] hover:bg-slate-100'
-                  )}
-                >
-                  {city}
-                </button>
-              );
-            })}
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
+            Portfolio at a glance
+          </h1>
+          {/* Location Selector Dropdown */}
+          <div className="relative inline-block mt-1">
+            <button
+              onClick={() => setCityDropdownOpen(!cityDropdownOpen)}
+              className="flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#0F172A] font-medium transition-colors"
+            >
+              <MapPin size={13} className="text-[#64748B]" />
+              <span>{selectedCity}</span>
+              <ChevronDown size={12} className="text-[#64748B]" />
+            </button>
 
-          {/* 5 Macro Numbers Forced Visible */}
-          <div className="flex items-center gap-2 flex-1 justify-end">
-            {/* 1. Overall Progress */}
-            <div className="px-3 py-1 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2">
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748B]">
-                  Progress
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-black font-mono text-[#0F172A]">
-                    {kpis.overallProgress}%
-                  </span>
-                  <span className="text-[10px] font-mono text-[#94A3B8]">
-                    / {kpis.overallTargetProgress}% Plan
-                  </span>
-                </div>
+            {cityDropdownOpen && (
+              <div className="absolute left-0 mt-1.5 w-40 bg-white border border-[#E2E8F0] rounded-xl shadow-lg p-1.5 z-50 animate-in fade-in">
+                {CITIES.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      setSelectedCity(c);
+                      setCityDropdownOpen(false);
+                    }}
+                    className={clsx(
+                      'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                      selectedCity === c ? 'bg-blue-50 text-blue-700 font-bold' : 'text-[#0F172A] hover:bg-slate-50'
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
-              <span
+            )}
+          </div>
+        </div>
+
+        {/* Right: Period Tabs & Pagination Arrows */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center bg-[#F1F5F9] p-0.5 rounded-xl border border-[#E2E8F0]">
+            {PERIODS.map(p => (
+              <button
+                key={p}
+                onClick={() => setActivePeriod(p)}
                 className={clsx(
-                  'text-xs font-bold font-mono px-1.5 py-0.5 rounded',
-                  kpis.progressVariance >= 0
-                    ? 'bg-emerald-50 text-[#16805D] border border-emerald-200'
-                    : 'bg-rose-50 text-[#C63F43] border border-rose-200'
+                  'px-3 py-1 rounded-lg text-xs font-semibold transition-all',
+                  activePeriod === p
+                    ? 'bg-white text-[#0F172A] shadow-xs font-bold'
+                    : 'text-[#64748B] hover:text-[#0F172A]'
                 )}
               >
-                {kpis.progressVariance}%
-              </span>
-            </div>
+                {p}
+              </button>
+            ))}
+          </div>
 
-            {/* 2. Slabs Cast */}
-            <div
-              onClick={() => setSlabModalOpen(true)}
-              className="px-3 py-1 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2 cursor-pointer hover:border-slate-300 transition-colors"
-            >
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748B]">
-                  Slabs Cast
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-black font-mono text-[#0F172A]">
-                    {slabData.castSlabs}
-                  </span>
-                  <span className="text-[10px] font-mono text-[#94A3B8]">
-                    / {slabData.totalSlabs}
-                  </span>
-                </div>
-              </div>
-              <span className="text-xs font-bold font-mono px-1.5 py-0.5 rounded bg-blue-50 text-[#315EFB] border border-blue-200">
-                {slabData.castPercent}%
-              </span>
-            </div>
-
-            {/* 3. Flats Sold */}
-            <div
-              onClick={() => setInventoryModalOpen(true)}
-              className="px-3 py-1 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2 cursor-pointer hover:border-slate-300 transition-colors"
-            >
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748B]">
-                  Flats Sold
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-black font-mono text-[#16805D]">
-                    {commercialData.soldUnits}
-                  </span>
-                  <span className="text-[10px] font-mono text-[#94A3B8]">
-                    / {commercialData.totalUnits}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-bold font-mono text-[#16805D] block">
-                  {commercialData.soldPercent}%
-                </span>
-                <span className="text-[9px] font-mono text-[#64748B] block">
-                  ₹{commercialData.bookedValueCr}Cr
-                </span>
-              </div>
-            </div>
-
-            {/* 4. Quality Index */}
-            <div
-              onClick={() => setTab('quality')}
-              className="px-3 py-1 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2 cursor-pointer hover:border-slate-300 transition-colors"
-            >
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#64748B]">
-                  Quality Score
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xl font-black font-mono text-[#0F172A]">
-                    {kpis.portfolioQualityScore}
-                  </span>
-                  <span className="text-[10px] font-mono text-[#94A3B8]">/100</span>
-                </div>
-              </div>
-              <div
-                className={clsx(
-                  'w-3 h-3 rounded-full flex-shrink-0',
-                  kpis.portfolioQualityScore >= 80
-                    ? 'bg-[#16805D]'
-                    : kpis.portfolioQualityScore >= 60
-                    ? 'bg-[#B7791F]'
-                    : 'bg-[#C63F43]'
-                )}
-              />
-            </div>
-
-            {/* 5. Critical Issues */}
-            <div
-              onClick={() => setTab('nc')}
-              className={clsx(
-                'px-3 py-1 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors',
-                kpis.criticalNCs > 0
-                  ? 'bg-rose-50 border-rose-200 text-[#C63F43] hover:bg-rose-100'
-                  : 'bg-emerald-50 border-emerald-200 text-[#16805D]'
-              )}
-            >
-              <AlertTriangle size={16} />
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider font-bold">
-                  Defect Holds
-                </div>
-                <div className="text-xl font-black font-mono leading-none">
-                  {kpis.criticalNCs} <span className="text-xs font-semibold">Critical</span>
-                </div>
-              </div>
-            </div>
+          <div className="flex items-center gap-1 text-[#64748B]">
+            <button className="w-7 h-7 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center hover:bg-slate-50 transition-colors">
+              <ChevronLeft size={13} />
+            </button>
+            <button className="w-7 h-7 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center hover:bg-slate-50 transition-colors">
+              <ChevronRight size={13} />
+            </button>
           </div>
         </div>
       </div>
 
       {/* ============================================================
-          MAIN 1-ROW, 2-COLUMN BENTO GRID (Zero-Scroll Viewport)
-          Column 1 (Left): WIP Overview with Apple-Style Building Elevations
-          Column 2 (Right): Audit Infographic + Critical Issues + Flats Sold
+          TOP METRICS ROW (5 Cards in 1 Row)
           ============================================================ */}
-      <div className="flex-1 min-h-0 grid grid-cols-12 gap-3">
-        {/* ==========================================================
-            COLUMN 1 (Left 6 Cols): VIP / WIP OVERVIEW & BUILDING ELEVATION
-            ========================================================== */}
-        <div className="col-span-12 lg:col-span-6 bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs flex flex-col justify-between overflow-hidden">
-          {/* Header Strip */}
-          <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9] flex-shrink-0">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-[#0F172A] tracking-tight">
-                  WIP Construction Skyline
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-[#64748B] font-bold">
-                  Slab-Wise Elevations
-                </span>
-              </div>
-              <p className="text-[11px] font-mono text-[#64748B] mt-0.5">
-                Proportional tower elevations · Exact floor being cast · Defect pins
-              </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Card 1: Construction Progress */}
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+              <BarChart3 size={16} />
             </div>
-
-            <button
-              onClick={() => setTab('wip')}
-              className="text-xs font-bold text-[#315EFB] hover:text-[#2748C0] flex items-center gap-1 group bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors"
-            >
-              Full WIP Module <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
-            </button>
+            <span className="text-xs font-medium text-[#64748B]">Construction Progress</span>
           </div>
 
-          {/* Building Switcher Pills */}
-          <div className="flex items-center gap-1.5 py-1.5 flex-shrink-0">
-            <span className="text-[10px] font-mono uppercase text-[#94A3B8] font-bold mr-1">
-              Select Tower:
+          <div className="my-2.5 flex items-baseline justify-between">
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
+              71%
             </span>
-            {skylineBuildings.map(b => (
-              <button
-                key={b.id}
-                onClick={() => setSelectedBuildingId(b.id)}
-                className={clsx(
-                  'px-2.5 py-0.5 rounded-md text-xs font-mono font-bold transition-all border',
-                  selectedBuildingId === b.id
-                    ? 'bg-[#0F172A] text-white border-[#0F172A]'
-                    : 'bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0] hover:text-[#0F172A]'
-                )}
-              >
-                {b.projectName} ({b.totalFloors}F)
-                {b.criticalFloor && (
-                  <span className="ml-1 w-1.5 h-1.5 rounded-full bg-rose-500 inline-block align-middle" />
-                )}
-              </button>
-            ))}
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-[#C63F43] border border-rose-100">
+              ↓ 2%
+            </span>
           </div>
 
-          {/* Apple-style Building Elevation Infographic Area */}
-          <div className="flex-1 min-h-0 flex items-end justify-around gap-4 px-4 py-2 bg-[#F8FAFC]/70 rounded-xl border border-[#F1F5F9] relative overflow-hidden">
-            {/* Background Grid Lines */}
-            <div className="absolute inset-0 pointer-events-none opacity-20 flex flex-col justify-between p-2">
-              <div className="border-b border-dashed border-slate-400 w-full" />
-              <div className="border-b border-dashed border-slate-400 w-full" />
-              <div className="border-b border-dashed border-slate-400 w-full" />
-              <div className="border-b border-dashed border-slate-400 w-full" />
+          {/* Green Progress Bar */}
+          <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+            <div className="h-full bg-[#10B981] rounded-full" style={{ width: '71%' }} />
+          </div>
+        </div>
+
+        {/* Card 2: Buildings Under Construction */}
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+              <Building2 size={16} />
             </div>
-
-            {skylineBuildings.map(building => {
-              const isSelected = building.id === selectedBuildingId;
-              const completedCount = building.completedFloors;
-              const total = building.totalFloors;
-
-              return (
-                <div
-                  key={building.id}
-                  onClick={() => setSelectedBuildingId(building.id)}
-                  className={clsx(
-                    'flex flex-col items-center cursor-pointer transition-all duration-200 relative group flex-1 max-w-[130px]',
-                    isSelected ? 'opacity-100 scale-102' : 'opacity-70 hover:opacity-90'
-                  )}
-                >
-                  {/* Rooftop Crane Illustration */}
-                  <div className="flex flex-col items-center mb-0.5">
-                    {/* Minimalist Crane Arm */}
-                    <div className="w-12 h-2.5 border-t-2 border-r-2 border-slate-500 relative flex justify-end">
-                      <div className="w-0.5 h-2 bg-rose-500 absolute -top-1 left-2" />
-                      <div className="w-1.5 h-1 bg-slate-600 rounded-2xs" />
-                    </div>
-                    {/* Parapet Roof */}
-                    <div className="w-16 h-1 bg-slate-700 rounded-t" />
-                  </div>
-
-                  {/* Tower Stack: Scaled by floor count (Top Floor down to Ground) */}
-                  <div
-                    className={clsx(
-                      'w-16 bg-white border-2 rounded-t-sm flex flex-col-reverse p-0.5 gap-[2px] shadow-sm transition-all',
-                      isSelected ? 'border-[#0F172A]' : 'border-slate-300'
-                    )}
-                    style={{ height: `${total * 9 + 10}px` }}
-                  >
-                    {Array.from({ length: total }, (_, i) => {
-                      const floorNum = i + 1;
-                      const isCompleted = floorNum <= completedCount;
-                      const isCritical = building.criticalFloor?.floorNumber === floorNum;
-                      const isActive = floorNum === building.activeFloor;
-
-                      return (
-                        <div
-                          key={floorNum}
-                          onMouseEnter={() =>
-                            setHoveredFloor({
-                              towerName: `${building.projectName} · ${building.towerName}`,
-                              floorNumber: floorNum,
-                              status: isCritical
-                                ? 'CRITICAL DEFECT'
-                                : isCompleted
-                                ? 'Completed Slab'
-                                : isActive
-                                ? 'Currently Pouring'
-                                : 'Upcoming',
-                              detail: isCritical ? building.criticalFloor?.issue : undefined,
-                            })
-                          }
-                          onMouseLeave={() => setHoveredFloor(null)}
-                          className={clsx(
-                            'h-[7px] w-full rounded-2xs transition-all relative',
-                            isCritical
-                              ? 'bg-[#EF4444] animate-pulse ring-1 ring-red-500'
-                              : isCompleted
-                              ? 'bg-[#0F172A]'
-                              : isActive
-                              ? 'bg-[#315EFB] ring-1 ring-blue-400'
-                              : 'bg-slate-200/80'
-                          )}
-                        >
-                          {/* Pin indicator on the Critical Error Floor */}
-                          {isCritical && (
-                            <span className="absolute -right-3 -top-1 w-2.5 h-2.5 rounded-full bg-rose-600 border border-white ring-2 ring-red-400 animate-ping flex items-center justify-center text-[7px] font-black text-white" />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Concrete Ground Anchor */}
-                  <div className="w-20 h-1.5 bg-slate-400 rounded-b mt-0.5" />
-
-                  {/* Tower Bottom Label */}
-                  <div className="text-center mt-1.5 w-full">
-                    <div className="text-xs font-black text-[#0F172A] truncate">
-                      {building.towerName}
-                    </div>
-                    <div className="text-[10px] font-mono text-[#64748B]">
-                      {completedCount}/{total} Fl ({Math.round((completedCount / total) * 100)}%)
-                    </div>
-                    {building.delayDays !== 0 && (
-                      <span
-                        className={clsx(
-                          'text-[9px] font-mono font-bold px-1 rounded block mt-0.5',
-                          building.delayDays < 0
-                            ? 'text-[#C63F43] bg-rose-50'
-                            : 'text-[#16805D] bg-emerald-50'
-                        )}
-                      >
-                        {building.delayDays}d
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Floating Floor Inspection Tooltip */}
-            {hoveredFloor && (
-              <div className="absolute top-2 left-2 bg-[#0F172A] text-white px-3 py-1.5 rounded-lg shadow-xl text-xs z-30 pointer-events-none animate-in fade-in duration-150 border border-slate-700">
-                <div className="font-bold font-mono">
-                  {hoveredFloor.towerName} — Floor {hoveredFloor.floorNumber.toString().padStart(2, '0')}
-                </div>
-                <div className="text-[10px] text-slate-300 font-mono mt-0.5">
-                  Status: <span className="font-bold text-white">{hoveredFloor.status}</span>
-                </div>
-                {hoveredFloor.detail && (
-                  <div className="text-[10px] text-rose-300 font-mono mt-0.5 font-bold">
-                    ⚠️ {hoveredFloor.detail}
-                  </div>
-                )}
-              </div>
-            )}
+            <span className="text-xs font-medium text-[#64748B]">Buildings Under Construction</span>
           </div>
 
-          {/* Active Building Diagnostic Callout & Slabs Breakdown */}
-          <div className="pt-2 border-t border-[#F1F5F9] flex items-center justify-between text-xs font-mono flex-shrink-0">
+          <div className="my-2.5 flex items-baseline justify-between">
+            <div>
+              <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
+                10
+              </span>
+              <span className="text-sm font-medium text-[#94A3B8] ml-1">/ 100</span>
+            </div>
+            {/* Subtle building icon silhouette */}
+            <Building2 size={22} className="text-slate-300 stroke-1" />
+          </div>
+
+          {/* Blue Progress Bar */}
+          <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+            <div className="h-full bg-[#315EFB] rounded-full" style={{ width: '10%' }} />
+          </div>
+        </div>
+
+        {/* Card 3: Units Sold */}
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+              <Home size={16} />
+            </div>
+            <span className="text-xs font-medium text-[#64748B]">Units Sold</span>
+          </div>
+
+          <div className="my-1.5 flex items-center justify-between">
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
+              889
+            </span>
+
+            {/* Donut Chart with 80% */}
             <div className="flex items-center gap-2">
-              <span className="font-bold text-[#0F172A]">
-                {activeBuilding.projectName} ({activeBuilding.city})
-              </span>
-              {activeBuilding.criticalFloor && (
-                <span
-                  onClick={() => {
-                    setTab('nc');
-                    selectNC(activeBuilding.criticalFloor!.ncId);
-                  }}
-                  className="px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-[#C63F43] font-bold text-[10px] cursor-pointer hover:bg-rose-100 flex items-center gap-1"
-                >
-                  <AlertTriangle size={11} />
-                  Floor 05: {activeBuilding.criticalFloor.issue} (Inspect)
+              <svg className="w-9 h-9 transform -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="14" fill="none" stroke="#E2E8F0" strokeWidth="3.5" />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="14"
+                  fill="none"
+                  stroke="#10B981"
+                  strokeWidth="3.5"
+                  strokeDasharray={2 * Math.PI * 14}
+                  strokeDashoffset={2 * Math.PI * 14 * (1 - 0.8)}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div>
+                <div className="text-xs font-extrabold text-[#0F172A] leading-tight">80%</div>
+                <div className="text-[9px] text-[#94A3B8] font-medium leading-none">of 1,110</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Empty spacer or subtle bar */}
+          <div className="h-1.5" />
+        </div>
+
+        {/* Card 4: Overdue WIRs */}
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+              <ClipboardCheck size={16} />
+            </div>
+            <span className="text-xs font-medium text-[#64748B]">Overdue WIRs</span>
+          </div>
+
+          <div className="my-1.5 flex items-baseline justify-between">
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
+              7
+            </span>
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-[#EA580C] border border-orange-100">
+              ↑ 3
+            </span>
+          </div>
+
+          {/* Red Sparkline Curve */}
+          <div className="w-full h-4 flex items-end">
+            <svg className="w-full h-3.5 overflow-visible" viewBox="0 0 100 20" preserveAspectRatio="none">
+              <path
+                d="M0,16 Q20,15 35,18 T70,10 T100,2"
+                fill="none"
+                stroke="#F87171"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Card 5: Open NCs */}
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-rose-500">
+              <AlertTriangle size={16} />
+            </div>
+            <span className="text-xs font-medium text-[#64748B]">Open NCs</span>
+          </div>
+
+          <div className="my-1.5 flex items-baseline justify-between">
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
+              24
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-[#C63F43] border border-rose-100">
+              4 critical
+            </span>
+          </div>
+
+          {/* Mini Red Vertical Bars Histogram */}
+          <div className="w-full flex items-end justify-end gap-1 h-4">
+            <span className="w-1.5 h-2 bg-rose-200 rounded-2xs" />
+            <span className="w-1.5 h-3.5 bg-rose-300 rounded-2xs" />
+            <span className="w-1.5 h-2.5 bg-rose-300 rounded-2xs" />
+            <span className="w-1.5 h-4 bg-rose-400 rounded-2xs" />
+            <span className="w-1.5 h-3 bg-rose-400 rounded-2xs" />
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          MAIN 2-COLUMN SECTION
+          Left Column (65% width): Construction Status + Projects Table
+          Right Column (35% width): Quality & Critical Issues + Map
+          ============================================================ */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* ==========================================================
+            LEFT COLUMN (8 cols out of 12)
+            ========================================================== */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Card 1: Construction Status */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+            {/* Header with Title and Legend */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+                  <Building2 size={15} />
+                </div>
+                <h2 className="text-sm font-bold text-[#0F172A]">Construction Status</h2>
+              </div>
+
+              {/* Legend with Colored Dots */}
+              <div className="flex items-center gap-3.5 text-xs text-[#64748B] flex-wrap">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#10B981]" /> Completed
                 </span>
-              )}
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#315EFB]" /> Under Construction
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#CBD5E1]" /> Planned
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#EF4444]" /> At Risk
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 text-[10px] text-[#64748B]">
-              <span className="flex items-center gap-1 font-bold text-[#0F172A]">
-                <span className="w-2 h-2 rounded-2xs bg-[#0F172A]" /> Cast
-              </span>
-              <span className="flex items-center gap-1 font-bold text-[#315EFB]">
-                <span className="w-2 h-2 rounded-2xs bg-[#315EFB]" /> Pouring
-              </span>
-              <span className="flex items-center gap-1 font-bold text-[#EF4444]">
-                <span className="w-2 h-2 rounded-2xs bg-[#EF4444]" /> Defect Hold
-              </span>
-              <span className="flex items-center gap-1 text-slate-400">
-                <span className="w-2 h-2 rounded-2xs bg-slate-200" /> Upcoming
-              </span>
+            {/* Architectural Skyline Graphic */}
+            <div className="relative my-2 w-full overflow-hidden rounded-xl bg-gradient-to-b from-sky-50/20 to-transparent">
+              <img
+                src="/assets/construction-buildings.png"
+                alt="Construction Status Skyline"
+                className="w-full h-auto object-cover max-h-[190px] mx-auto select-none"
+              />
+            </div>
+
+            {/* 4 Projects Progress Footer Bars */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-slate-100">
+              {/* Riverstone Towers */}
+              <div
+                onClick={() => selectProject('P004')}
+                className="cursor-pointer group"
+              >
+                <div className="text-xs font-bold text-[#0F172A] group-hover:text-[#315EFB] transition-colors truncate">
+                  Riverstone Towers
+                </div>
+                <div className="text-[11px] text-[#64748B] flex items-center gap-1 mt-0.5">
+                  <MapPin size={10} /> Gurugram
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10B981] rounded-full" style={{ width: '17%' }} />
+                  </div>
+                  <span className="text-xs font-bold text-[#0F172A]">17%</span>
+                </div>
+              </div>
+
+              {/* Meridian Heights */}
+              <div
+                onClick={() => selectProject('P001')}
+                className="cursor-pointer group"
+              >
+                <div className="text-xs font-bold text-[#0F172A] group-hover:text-[#315EFB] transition-colors truncate">
+                  Meridian Heights
+                </div>
+                <div className="text-[11px] text-[#64748B] flex items-center gap-1 mt-0.5">
+                  <MapPin size={10} /> Mumbai
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10B981] rounded-full" style={{ width: '50%' }} />
+                  </div>
+                  <span className="text-xs font-bold text-[#0F172A]">50%</span>
+                </div>
+              </div>
+
+              {/* Vivanta Sereno */}
+              <div
+                onClick={() => selectProject('P007')}
+                className="cursor-pointer group"
+              >
+                <div className="text-xs font-bold text-[#0F172A] group-hover:text-[#315EFB] transition-colors truncate">
+                  Vivanta Sereno
+                </div>
+                <div className="text-[11px] text-[#64748B] flex items-center gap-1 mt-0.5">
+                  <MapPin size={10} /> Pune
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10B981] rounded-full" style={{ width: '60%' }} />
+                  </div>
+                  <span className="text-xs font-bold text-[#0F172A]">60%</span>
+                </div>
+              </div>
+
+              {/* Northgate Residences */}
+              <div
+                onClick={() => selectProject('P002')}
+                className="cursor-pointer group"
+              >
+                <div className="text-xs font-bold text-[#0F172A] group-hover:text-[#315EFB] transition-colors truncate">
+                  Northgate Residences
+                </div>
+                <div className="text-[11px] text-[#64748B] flex items-center gap-1 mt-0.5">
+                  <MapPin size={10} /> Bengaluru
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10B981] rounded-full" style={{ width: '100%' }} />
+                  </div>
+                  <span className="text-xs font-bold text-[#0F172A]">100%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Projects Table */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+            <div className="flex items-center justify-between pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+                  <Building2 size={15} />
+                </div>
+                <h2 className="text-sm font-bold text-[#0F172A]">Projects</h2>
+              </div>
+              <button
+                onClick={() => setTab('wip')}
+                className="text-xs font-bold text-[#315EFB] hover:underline flex items-center gap-0.5"
+              >
+                View all projects <ChevronRight size={13} />
+              </button>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left min-w-[680px]">
+                <thead>
+                  <tr className="text-[#94A3B8] font-medium border-b border-slate-100 pb-2">
+                    <th className="py-2.5 font-medium">Project</th>
+                    <th className="py-2.5 font-medium">City</th>
+                    <th className="py-2.5 font-medium">Status</th>
+                    <th className="py-2.5 font-medium">Progress</th>
+                    <th className="py-2.5 font-medium">Units Sold</th>
+                    <th className="py-2.5 font-medium">Quality Score</th>
+                    <th className="py-2.5 font-medium">Open NCs</th>
+                    <th className="py-2.5 font-medium">Manager</th>
+                    <th className="py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {/* Row 1: Riverstone Towers */}
+                  <tr
+                    onClick={() => selectProject('P004')}
+                    className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                  >
+                    <td className="py-3 font-bold text-[#0F172A]">Riverstone Towers</td>
+                    <td className="py-3 text-[#64748B]">Gurugram</td>
+                    <td className="py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 text-[#C63F43] border border-rose-100 font-semibold text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" /> Critical
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#0F172A]">17%</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#EF4444] rounded-full" style={{ width: '17%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-[#0F172A]">320 / 480</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#10B981] rounded-full" style={{ width: '67%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className="px-2 py-0.5 rounded bg-rose-50 text-[#C63F43] font-bold">
+                        52
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <span className="font-bold text-[#0F172A] mr-1.5">12</span>
+                      <span className="text-[#C63F43] font-semibold text-[11px]">4 critical</span>
+                    </td>
+                    <td className="py-3 text-[#64748B]">A. Sharma</td>
+                    <td className="py-3 text-right text-slate-300">
+                      <ChevronRight size={14} />
+                    </td>
+                  </tr>
+
+                  {/* Row 2: Meridian Heights */}
+                  <tr
+                    onClick={() => selectProject('P001')}
+                    className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                  >
+                    <td className="py-3 font-bold text-[#0F172A]">Meridian Heights</td>
+                    <td className="py-3 text-[#64748B]">Mumbai</td>
+                    <td className="py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-[#B7791F] border border-amber-100 font-semibold text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" /> At Risk
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#0F172A]">50%</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#315EFB] rounded-full" style={{ width: '50%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-[#0F172A]">280 / 420</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#315EFB] rounded-full" style={{ width: '67%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className="px-2 py-0.5 rounded bg-amber-50 text-[#B7791F] font-bold">
+                        69
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <span className="font-bold text-[#0F172A] mr-1.5">7</span>
+                      <span className="text-[#C63F43] font-semibold text-[11px]">1 critical</span>
+                    </td>
+                    <td className="py-3 text-[#64748B]">R. Mehta</td>
+                    <td className="py-3 text-right text-slate-300">
+                      <ChevronRight size={14} />
+                    </td>
+                  </tr>
+
+                  {/* Row 3: Vivanta Sereno */}
+                  <tr
+                    onClick={() => selectProject('P007')}
+                    className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                  >
+                    <td className="py-3 font-bold text-[#0F172A]">Vivanta Sereno</td>
+                    <td className="py-3 text-[#64748B]">Pune</td>
+                    <td className="py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-[#16805D] border border-emerald-100 font-semibold text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> On Track
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#0F172A]">60%</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#0D9488] rounded-full" style={{ width: '60%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-[#0F172A]">238 / 340</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#0D9488] rounded-full" style={{ width: '70%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-[#16805D] font-bold">
+                        91
+                      </span>
+                    </td>
+                    <td className="py-3 font-bold text-[#0F172A]">2</td>
+                    <td className="py-3 text-[#64748B]">S. Rao</td>
+                    <td className="py-3 text-right text-slate-300">
+                      <ChevronRight size={14} />
+                    </td>
+                  </tr>
+
+                  {/* Row 4: Northgate Residences */}
+                  <tr
+                    onClick={() => selectProject('P002')}
+                    className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                  >
+                    <td className="py-3 font-bold text-[#0F172A]">Northgate Residences</td>
+                    <td className="py-3 text-[#64748B]">Bengaluru</td>
+                    <td className="py-3">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-[#16805D] border border-emerald-100 font-semibold text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> On Track
+                      </span>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#0F172A]">100%</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#10B981] rounded-full" style={{ width: '100%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-[#0F172A]">51 / 60</span>
+                        <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                          <div className="h-full bg-[#10B981] rounded-full" style={{ width: '85%' }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-[#16805D] font-bold">
+                        88
+                      </span>
+                    </td>
+                    <td className="py-3 font-bold text-[#0F172A]">1</td>
+                    <td className="py-3 text-[#64748B]">K. Nair</td>
+                    <td className="py-3 text-right text-slate-300">
+                      <ChevronRight size={14} />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
 
         {/* ==========================================================
-            COLUMN 2 (Right 6 Cols): TWO STACKED BENTO BOXES
-            Top: Audit Overview (Apple Rings) + Critical Issues
-            Bottom: Flats Sold Infographic
+            RIGHT COLUMN (4 cols out of 12)
+            Quality & Critical Issues + Sales & Construction Map
             ========================================================== */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col gap-3 min-h-0">
-          {/* Bento 2A (Top): Audit Infographic & Critical Issues */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs flex-1 flex flex-col justify-between overflow-hidden">
-            <div className="flex items-center justify-between pb-1.5 border-b border-[#F1F5F9] flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <Award size={15} className="text-[#16805D]" />
-                <span className="text-sm font-black text-[#0F172A] tracking-tight">
-                  Audit Quality & Critical Issues
-                </span>
+        <div className="lg:col-span-4 space-y-4">
+          {/* Card 1: Quality & Critical Issues */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+            {/* Header */}
+            <div className="flex items-center gap-2.5 pb-3">
+              <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+                <ShieldCheck size={15} />
               </div>
-              <button
-                onClick={() => setTab('quality')}
-                className="text-xs font-bold text-[#16805D] hover:underline flex items-center gap-1"
-              >
-                Full Audit →
-              </button>
+              <h2 className="text-sm font-bold text-[#0F172A]">Quality & Critical Issues</h2>
             </div>
 
-            <div className="flex-1 min-h-0 grid grid-cols-12 gap-3 items-center py-1">
-              {/* Left 5 Cols: Apple-style Concentric Activity Rings */}
-              <div className="col-span-5 flex flex-col items-center justify-center relative">
-                <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
-                  {/* Ring 1: WIR Pass Rate (Outer - Radius 48) */}
-                  <circle cx="60" cy="60" r="48" stroke="#E2E8F0" strokeWidth="8" fill="none" />
+            {/* Quality Score Donut Meter + 3 Metric Bars */}
+            <div className="flex items-center gap-5 my-2">
+              {/* Donut Circle */}
+              <div className="relative w-24 h-24 flex items-center justify-center flex-shrink-0">
+                <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
                   <circle
-                    cx="60"
-                    cy="60"
-                    r="48"
-                    stroke="#16805D"
-                    strokeWidth="8"
-                    strokeDasharray={2 * Math.PI * 48}
-                    strokeDashoffset={2 * Math.PI * 48 * (1 - kpis.portfolioWIRPassRate / 100)}
-                    strokeLinecap="round"
+                    cx="50"
+                    cy="50"
+                    r="40"
                     fill="none"
+                    stroke="#E2E8F0"
+                    strokeWidth="8"
                   />
-
-                  {/* Ring 2: NC Health (Middle - Radius 36) */}
-                  <circle cx="60" cy="60" r="36" stroke="#E2E8F0" strokeWidth="8" fill="none" />
                   <circle
-                    cx="60"
-                    cy="60"
-                    r="36"
-                    stroke="#315EFB"
-                    strokeWidth="8"
-                    strokeDasharray={2 * Math.PI * 36}
-                    strokeDashoffset={2 * Math.PI * 36 * (1 - 0.85)}
-                    strokeLinecap="round"
+                    cx="50"
+                    cy="50"
+                    r="40"
                     fill="none"
-                  />
-
-                  {/* Ring 3: Audit Compliance (Inner - Radius 24) */}
-                  <circle cx="60" cy="60" r="24" stroke="#E2E8F0" strokeWidth="8" fill="none" />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="24"
-                    stroke="#8B5CF6"
+                    stroke="#0D9488"
                     strokeWidth="8"
-                    strokeDasharray={2 * Math.PI * 24}
-                    strokeDashoffset={2 * Math.PI * 24 * (1 - 0.72)}
+                    strokeDasharray={2 * Math.PI * 40}
+                    strokeDashoffset={2 * Math.PI * 40 * (1 - 0.79)}
                     strokeLinecap="round"
-                    fill="none"
                   />
                 </svg>
-
-                {/* Score in Center of Rings */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-black font-mono text-[#0F172A] leading-none">
-                    {kpis.portfolioQualityScore}
-                  </span>
-                  <span className="text-[9px] font-mono font-bold text-[#64748B]">INDEX</span>
-                </div>
-
-                {/* Rings Legend */}
-                <div className="flex items-center gap-2 text-[9px] font-mono mt-1">
-                  <span className="text-[#16805D] font-bold">WIR {kpis.portfolioWIRPassRate}%</span>
-                  <span className="text-[#315EFB] font-bold">NC 85%</span>
-                  <span className="text-[#8B5CF6] font-bold">Audit 72%</span>
+                  <span className="text-2xl font-black text-[#0F172A] leading-tight">79</span>
+                  <span className="text-[10px] text-[#94A3B8] font-medium leading-none">/ 100</span>
                 </div>
               </div>
 
-              {/* Right 7 Cols: Critical Live Issues */}
-              <div className="col-span-7 flex flex-col justify-around h-full space-y-1.5 pl-2 border-l border-[#F1F5F9]">
-                <div className="text-[10px] font-mono uppercase font-bold text-[#64748B] tracking-wider">
-                  Main Critical Issues
+              {/* 3 Metric Progress Bars */}
+              <div className="flex-1 space-y-2">
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-[#64748B] font-medium">WIR Pass Rate</span>
+                    <span className="font-extrabold text-[#0F172A]">83%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10B981] rounded-full" style={{ width: '83%' }} />
+                  </div>
                 </div>
 
-                {/* Issue 1: Honeycombing on Floor 5 */}
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-[#64748B] font-medium">NC Health</span>
+                    <span className="font-extrabold text-[#0F172A]">85%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#0D9488] rounded-full" style={{ width: '85%' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-[#64748B] font-medium">Audit Score</span>
+                    <span className="font-extrabold text-[#0F172A]">72%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#315EFB] rounded-full" style={{ width: '72%' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-slate-100 my-4" />
+
+            {/* Top Critical Issues List */}
+            <div>
+              <div className="flex items-center justify-between pb-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={15} className="text-rose-500" />
+                  <span className="text-xs font-bold text-[#0F172A]">Top Critical Issues</span>
+                </div>
+                <button
+                  onClick={() => setTab('nc')}
+                  className="text-xs font-bold text-[#315EFB] hover:underline"
+                >
+                  See all &gt;
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {/* Item 1 */}
                 <div
                   onClick={() => {
                     setTab('nc');
                     selectNC('NC-0001');
                   }}
-                  className="p-1.5 rounded-lg bg-rose-50 border border-rose-200 cursor-pointer hover:bg-rose-100 transition-colors flex items-center justify-between"
+                  className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
                 >
-                  <div className="min-w-0 pr-1">
+                  <img
+                    src="/assets/defect-thumb-1.png"
+                    alt="Defect"
+                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-mono font-black text-rose-800 bg-rose-200 px-1 rounded">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-50 text-[#C63F43] border border-rose-100">
                         CRITICAL
                       </span>
-                      <span className="text-xs font-bold text-rose-950 truncate">
-                        Riverstone · Floor 05
-                      </span>
                     </div>
-                    <div className="text-[10px] text-rose-800 font-mono truncate">
-                      Cube test failure & column honeycombing
+                    <div className="text-xs font-bold text-[#0F172A] truncate mt-0.5 group-hover:text-[#315EFB] transition-colors">
+                      Floor 05 – Column honeycombing
+                    </div>
+                    <div className="text-[11px] text-[#64748B] truncate">
+                      Riverstone • Gurugram
                     </div>
                   </div>
-                  <ChevronRight size={13} className="text-rose-500 flex-shrink-0" />
+                  <div className="flex items-center gap-1 text-[#94A3B8] text-xs flex-shrink-0">
+                    <span>28d</span>
+                    <ChevronRight size={13} />
+                  </div>
                 </div>
 
-                {/* Issue 2: WIR-0021 SLA Breach */}
+                {/* Item 2 */}
                 <div
                   onClick={() => {
                     setTab('wir');
                     selectWIR('WIR-0021');
                   }}
-                  className="p-1.5 rounded-lg bg-amber-50 border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors flex items-center justify-between"
+                  className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
                 >
-                  <div className="min-w-0 pr-1">
+                  <img
+                    src="/assets/defect-thumb-2.png"
+                    alt="Defect"
+                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-mono font-black text-amber-800 bg-amber-200 px-1 rounded">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-orange-50 text-[#EA580C] border border-orange-100">
                         SLA BREACH
                       </span>
-                      <span className="text-xs font-bold text-amber-950 truncate">
-                        WIR-0021 (Riverstone)
-                      </span>
                     </div>
-                    <div className="text-[10px] text-amber-800 font-mono truncate">
-                      7d overdue review holding up concrete pour
+                    <div className="text-xs font-bold text-[#0F172A] truncate mt-0.5 group-hover:text-[#315EFB] transition-colors">
+                      WIR-0021 – Concrete pour review
+                    </div>
+                    <div className="text-[11px] text-[#64748B] truncate">
+                      Riverstone • Gurugram
                     </div>
                   </div>
-                  <ChevronRight size={13} className="text-amber-500 flex-shrink-0" />
+                  <div className="flex items-center gap-1 text-[#94A3B8] text-xs flex-shrink-0">
+                    <span>7d</span>
+                    <ChevronRight size={13} />
+                  </div>
                 </div>
 
-                {/* Issue 3: Meridian Stirrups */}
+                {/* Item 3 */}
                 <div
                   onClick={() => {
                     setTab('nc');
                     selectNC('NC-0006');
                   }}
-                  className="p-1.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors flex items-center justify-between"
+                  className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
                 >
-                  <div className="min-w-0 pr-1">
+                  <img
+                    src="/assets/defect-thumb-3.png"
+                    alt="Defect"
+                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-mono font-black text-slate-800 bg-slate-200 px-1 rounded">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-[#315EFB] border border-blue-100">
                         WORKMANSHIP
                       </span>
-                      <span className="text-xs font-bold text-slate-900 truncate">
-                        Meridian · Tower B Fl 06
-                      </span>
                     </div>
-                    <div className="text-[10px] text-slate-600 font-mono truncate">
-                      Rebar stirrup spacing deviation (4d)
+                    <div className="text-xs font-bold text-[#0F172A] truncate mt-0.5 group-hover:text-[#315EFB] transition-colors">
+                      Tower B – Rebar spacing deviation
+                    </div>
+                    <div className="text-[11px] text-[#64748B] truncate">
+                      Meridian • Mumbai
                     </div>
                   </div>
-                  <ChevronRight size={13} className="text-slate-400 flex-shrink-0" />
+                  <div className="flex items-center gap-1 text-[#94A3B8] text-xs flex-shrink-0">
+                    <span>4d</span>
+                    <ChevronRight size={13} />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Bento 2B (Bottom): Flats Sold Infographic */}
-          <div
-            onClick={() => setInventoryModalOpen(true)}
-            className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-xs flex-1 flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group overflow-hidden"
-          >
-            <div className="flex items-center justify-between pb-1.5 border-b border-[#F1F5F9] flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <DollarSign size={15} className="text-[#315EFB]" />
-                <span className="text-sm font-black text-[#0F172A] tracking-tight">
-                  Flats Sold & Commercial Velocity
-                </span>
+          {/* Card 2: Sales & Construction Map */}
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
+                  <BarChart3 size={15} />
+                </div>
+                <h2 className="text-sm font-bold text-[#0F172A]">Sales & Construction Map</h2>
               </div>
-              <span className="text-xs font-bold text-[#315EFB] group-hover:underline flex items-center gap-0.5">
-                All Projects <ArrowUpRight size={12} />
-              </span>
+              <button className="text-slate-400 hover:text-[#0F172A] transition-colors">
+                <Maximize2 size={13} />
+              </button>
             </div>
 
-            {/* Bold Numbers Banner */}
-            <div className="grid grid-cols-3 gap-2 my-1 text-center bg-[#F8FAFC] p-2 rounded-xl border border-[#E2E8F0] flex-shrink-0">
-              <div>
-                <div className="text-xl font-black font-mono text-[#16805D]">
-                  {commercialData.soldUnits}
-                </div>
-                <div className="text-[10px] text-[#64748B] font-mono font-bold">
-                  Sold ({commercialData.soldPercent}%)
-                </div>
-              </div>
-              <div>
-                <div className="text-xl font-black font-mono text-[#0F172A]">
-                  {commercialData.leftUnits}
-                </div>
-                <div className="text-[10px] text-[#64748B] font-mono font-bold">
-                  Flats Left ({commercialData.leftPercent}%)
-                </div>
-              </div>
-              <div>
-                <div className="text-xl font-black font-mono text-[#315EFB]">
-                  ₹{commercialData.bookedValueCr}Cr
-                </div>
-                <div className="text-[10px] text-[#64748B] font-mono font-bold">
-                  Booked Revenue
-                </div>
-              </div>
-            </div>
+            {/* Map Canvas with Floating Info Card */}
+            <div className="relative w-full h-44 rounded-xl overflow-hidden bg-slate-50 border border-slate-200">
+              <img
+                src="/assets/mumbai-map-card.png"
+                alt="Mumbai Map"
+                className="w-full h-full object-cover select-none"
+              />
 
-            {/* Apple-style Multi-Bar Flats Sold Graph */}
-            <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto pr-1">
-              {commercialData.projectBreakdown.slice(0, 4).map(p => (
-                <div key={p.projectId} className="space-y-0.5">
-                  <div className="flex items-center justify-between text-[11px] font-mono">
-                    <span className="font-bold text-[#0F172A] truncate max-w-[150px]">
-                      {p.projectName}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#16805D] font-bold">
-                        {p.soldUnits} sold ({p.soldPercent}%)
-                      </span>
-                      <span className="text-[#94A3B8]">
-                        {p.leftUnits} left
-                      </span>
-                    </div>
+              {/* Floating Mumbai Summary Card */}
+              <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-xs border border-[#E2E8F0] rounded-xl p-3 shadow-md w-36 text-xs pointer-events-none">
+                <div className="flex items-center justify-between font-bold text-[#0F172A] pb-1.5 border-b border-slate-100 mb-1.5">
+                  <span>Mumbai</span>
+                  <ChevronRight size={12} className="text-slate-400" />
+                </div>
+                <div className="space-y-1 text-[11px] text-[#64748B]">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 size={11} className="text-slate-400" />
+                    <span>4 Projects</span>
                   </div>
-                  {/* Sleek Progress Bar */}
-                  <div className="h-2 w-full bg-[#E2E8F0] rounded-full overflow-hidden flex">
-                    <div
-                      className={clsx(
-                        'h-full rounded-full transition-all duration-300',
-                        p.soldPercent < 60 ? 'bg-[#F59E0B]' : 'bg-[#16805D]'
-                      )}
-                      style={{ width: `${p.soldPercent}%` }}
-                    />
+                  <div className="flex items-center gap-1.5">
+                    <Home size={11} className="text-slate-400" />
+                    <span>889 Units Sold</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <BarChart3 size={11} className="text-slate-400" />
+                    <span>71% Construction</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck size={11} className="text-slate-400" />
+                    <span>79 Quality Score</span>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Bottom Callout */}
-            <div className="pt-1.5 border-t border-[#F1F5F9] flex items-center justify-between text-[10px] font-mono text-[#64748B] flex-shrink-0">
-              <span className="text-[#F59E0B] font-bold">
-                ⚠️ Riverstone lagging at 58% sold due to structural hold
-              </span>
-              <span className="font-bold text-[#16805D]">
-                Harbour Point leading at 90%
-              </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ============================================================
-          INTERACTIVE MODALS (Opened only on click)
-          ============================================================ */}
-
-      {/* 1. Commercial Flats Sold Modal */}
-      {inventoryModalOpen && (
-        <InventoryModal
-          data={commercialData}
-          onClose={() => setInventoryModalOpen(false)}
-        />
-      )}
-
-      {/* 2. Slabs Construction Modal */}
-      {slabModalOpen && (
-        <SlabModal
-          data={slabData}
-          onClose={() => setSlabModalOpen(false)}
-          onOpenWIP={(projId) => {
-            setSlabModalOpen(false);
-            setTab('wip');
-            if (projId) setFilter('project', projId);
-          }}
-        />
-      )}
-
-      {/* 3. Project Detail Drawer */}
+      {/* Project Detail Drawer */}
       {state.selectedProjectId && (
         <ProjectDetailDrawer
           projectId={state.selectedProjectId}
           onClose={() => selectProject(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ── 1. CXO Commercial Inventory Modal ─────────────────────────
-function InventoryModal({
-  data,
-  onClose,
-}: {
-  data: ReturnType<typeof getCXOCommercialInventory>;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-2xl max-w-4xl w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
-          <div>
-            <h2 className="text-base font-bold text-[#0F172A]">
-              Commercial Real Estate Inventory & Sales Breakdown
-            </h2>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Portfolio-wide units built, sold, under construction, and unsold valuation.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Global Summary KPI Grid */}
-        <div className="grid grid-cols-4 gap-3 my-4">
-          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-center">
-            <div className="text-2xl font-black font-mono text-[#0F172A]">{data.totalUnits}</div>
-            <div className="text-xs text-[#64748B]">Total Portfolio Flats</div>
-          </div>
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-            <div className="text-2xl font-black font-mono text-[#16805D]">
-              {data.soldUnits} ({data.soldPercent}%)
-            </div>
-            <div className="text-xs text-emerald-800">Flats Sold</div>
-          </div>
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-center">
-            <div className="text-2xl font-black font-mono text-[#C63F43]">
-              {data.leftUnits} ({data.leftPercent}%)
-            </div>
-            <div className="text-xs text-rose-800">Flats Left / Available</div>
-          </div>
-          <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-center">
-            <div className="text-2xl font-black font-mono text-[#315EFB]">
-              ₹{data.bookedValueCr} Cr
-            </div>
-            <div className="text-xs text-blue-800">Booked of ₹{data.totalInventoryCr} Cr</div>
-          </div>
-        </div>
-
-        {/* Project Breakdown Table */}
-        <div className="flex-1 overflow-y-auto border border-[#E2E8F0] rounded-xl">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] font-semibold sticky top-0">
-              <tr>
-                <th className="px-3 py-2.5">Project</th>
-                <th className="px-3 py-2.5">City</th>
-                <th className="px-3 py-2.5 text-right">Total Flats</th>
-                <th className="px-3 py-2.5 text-right">Sold Flats</th>
-                <th className="px-3 py-2.5 text-right">Sold %</th>
-                <th className="px-3 py-2.5 text-right">Flats Left</th>
-                <th className="px-3 py-2.5 text-right">Booked ₹</th>
-                <th className="px-3 py-2.5 text-right">Total Inventory ₹</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {data.projectBreakdown.map(p => (
-                <tr key={p.projectId} className="hover:bg-slate-50">
-                  <td className="px-3 py-2.5 font-bold text-[#0F172A]">{p.projectName}</td>
-                  <td className="px-3 py-2.5 text-[#64748B]">{p.city}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">{p.totalUnits}</td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-[#16805D]">{p.soldUnits}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-[#16805D]">
-                      {p.soldPercent}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-[#C63F43]">{p.leftUnits}</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-[#0F172A]">₹{p.bookedValueCr} Cr</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-[#64748B]">₹{p.inventoryValueCr} Cr</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 2. Slab-Wise Construction Breakdown Modal ───────────────────
-function SlabModal({
-  data,
-  onClose,
-  onOpenWIP,
-}: {
-  data: ReturnType<typeof getPortfolioSlabMetrics>;
-  onClose: () => void;
-  onOpenWIP: (projId?: string) => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-2xl max-w-4xl w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
-          <div>
-            <h2 className="text-base font-bold text-[#0F172A]">
-              Slab-Wise & Floor-Cycle Construction Matrix
-            </h2>
-            <p className="text-xs text-[#64748B] mt-0.5">
-              Tower-by-tower structural casting progress and delay tracking across all projects.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-slate-100"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Global Summary */}
-        <div className="grid grid-cols-4 gap-3 my-4">
-          <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-center">
-            <div className="text-2xl font-black font-mono text-[#0F172A]">{data.totalSlabs}</div>
-            <div className="text-xs text-[#64748B]">Total Slabs Planned</div>
-          </div>
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-            <div className="text-2xl font-black font-mono text-[#16805D]">
-              {data.castSlabs} ({data.castPercent}%)
-            </div>
-            <div className="text-xs text-emerald-800">Slabs Cast & Cured</div>
-          </div>
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-center">
-            <div className="text-2xl font-black font-mono text-[#B7791F]">
-              {data.activeSlabs} Slabs
-            </div>
-            <div className="text-xs text-amber-800">In Pour & Rebar</div>
-          </div>
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-center">
-            <div className="text-2xl font-black font-mono text-[#C63F43]">
-              {data.delayedSlabs} Slabs
-            </div>
-            <div className="text-xs text-rose-800">Delayed Behind Schedule</div>
-          </div>
-        </div>
-
-        {/* Towers Breakdown Table */}
-        <div className="flex-1 overflow-y-auto border border-[#E2E8F0] rounded-xl">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] font-semibold sticky top-0">
-              <tr>
-                <th className="px-3 py-2.5">Tower Name</th>
-                <th className="px-3 py-2.5">Project</th>
-                <th className="px-3 py-2.5">City</th>
-                <th className="px-3 py-2.5">Current Stage</th>
-                <th className="px-3 py-2.5 text-right">Completed Slabs</th>
-                <th className="px-3 py-2.5 text-right">Total Slabs</th>
-                <th className="px-3 py-2.5 text-right">Progress</th>
-                <th className="px-3 py-2.5 text-right">Status</th>
-                <th className="px-3 py-2.5 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {data.towers.map(t => {
-                const pct = Math.round((t.completedFloors / t.totalFloors) * 100);
-                return (
-                  <tr key={t.towerId} className="hover:bg-slate-50">
-                    <td className="px-3 py-2.5 font-bold text-[#0F172A]">{t.towerName}</td>
-                    <td className="px-3 py-2.5 text-[#0F172A]">{t.projectName}</td>
-                    <td className="px-3 py-2.5 text-[#64748B]">{t.city}</td>
-                    <td className="px-3 py-2.5 text-[#64748B]">{t.currentStage}</td>
-                    <td className="px-3 py-2.5 text-right font-mono font-bold text-[#16805D]">{t.completedFloors}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{t.totalFloors}</td>
-                    <td className="px-3 py-2.5 text-right font-mono font-bold">{pct}%</td>
-                    <td className="px-3 py-2.5 text-right">
-                      <span
-                        className={clsx(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded border',
-                          t.status === 'Delayed'
-                            ? 'bg-rose-50 text-[#C63F43] border-rose-200'
-                            : t.status === 'At Risk'
-                            ? 'bg-amber-50 text-[#B7791F] border-amber-200'
-                            : 'bg-emerald-50 text-[#16805D] border-emerald-200'
-                        )}
-                      >
-                        {t.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <button
-                        onClick={() => onOpenWIP(t.projectId)}
-                        className="text-[#315EFB] hover:underline font-semibold"
-                      >
-                        View in WIP →
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
