@@ -19,6 +19,7 @@ import { AuditDetailDrawer } from './AuditDetailDrawer';
 const NAV_ITEMS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'wip', label: 'WIP' },
+  { key: 'sales', label: 'Commercial Units' },
   { key: 'wir', label: 'WIR' },
   { key: 'nc', label: 'Non-Compliance' },
   { key: 'quality', label: 'Quality' },

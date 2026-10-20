@@ -224,10 +224,14 @@ export function PortfolioPage() {
         </div>
 
         {/* KPI 2: Commercial Units Sold */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4.5 shadow-2xs flex flex-col justify-between">
+        <div
+          onClick={() => setTab('sales')}
+          className="bg-white border border-[#E5E7EB] rounded-xl p-4.5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
+        >
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#737B88]">
-              Inventory Sold & Booked
+            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#737B88]">
+              <span>Inventory Sold & Booked</span>
+              <ArrowUpRight size={13} className="text-[#00594F] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <div className="mt-1.5 flex items-baseline gap-1.5">
               <span className="text-4xl sm:text-5xl font-black text-[#17191D] tracking-tight tabular-nums">

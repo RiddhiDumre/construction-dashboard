@@ -7,6 +7,7 @@ import { WIRPage } from './pages/WIRPage';
 import { NCPage } from './pages/NCPage';
 import { QualityScorePage } from './pages/QualityScorePage';
 import { ContractorsPage } from './pages/ContractorsPage';
+import { CommercialUnitsPage } from './pages/CommercialUnitsPage';
 
 function AppContent() {
   const { state } = useApp();
@@ -15,6 +16,7 @@ function AppContent() {
     <AppShell>
       {(state.activeTab === 'overview' || state.activeTab === 'portfolio') && <PortfolioPage />}
       {state.activeTab === 'wip' && <WIPPage />}
+      {state.activeTab === 'sales' && <CommercialUnitsPage />}
       {state.activeTab === 'wir' && <WIRPage />}
       {state.activeTab === 'quality' && <QualityScorePage />}
       {state.activeTab === 'nc' && <NCPage />}

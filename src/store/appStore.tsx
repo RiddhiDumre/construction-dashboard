@@ -10,7 +10,7 @@ import {
 } from '../data/seedData';
 
 // ── State ─────────────────────────────────────────────────────
-export type TabKey = 'overview' | 'wip' | 'wir' | 'quality' | 'nc' | 'contractors' | 'project-detail' | 'portfolio';
+export type TabKey = 'overview' | 'wip' | 'sales' | 'wir' | 'quality' | 'nc' | 'contractors' | 'project-detail' | 'portfolio';
 export type UserRole = 'CXO' | 'ProjectsHead' | 'ProjectManager' | 'QualityInspector' | 'Contractor' | 'Admin';
 
 export interface AppState {
