@@ -1,754 +1,1011 @@
 // ============================================================
-// PAGE 1 — PORTFOLIO AT A GLANCE (Overview Cockpit)
-// 100% Dynamic data driven by selected location
-// Dynamic building skyline (stacked slab rectangles with architectural details)
-// Dynamic vector sales map with interactive radar pins
-// Minimal status indicators (restrained dots, no tacky AI bubble pills)
-// Clean sectioning & thoughtful filtering
+// PAGE 1 — PORTFOLIO OVERVIEW
+// Apple-inspired executive dashboard for BombayDC leadership.
+// Minimalist architectural elevations, clean tabular typography,
+// dynamic location scoping, and restrained status hierarchy.
 // ============================================================
 
 import React, { useState, useMemo } from 'react';
 import {
-  Building2, BarChart3, Home, ClipboardCheck, AlertTriangle,
-  ShieldCheck, MapPin, ChevronRight, ChevronLeft, ChevronDown,
-  Maximize2, ArrowRight, Search, CheckCircle2
+  Building2, CheckCircle2, ChevronRight, MapPin,
+  ArrowRight, ShieldAlert, Award
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useApp } from '../store/appStore';
-import { PROJECTS } from '../data/seedData';
 import {
   getAllProjectMetrics, getOverviewPortfolioKPIs, getNeedsAttentionAlerts,
-  getCXOCommercialInventory,
+  getCXOCommercialInventory, getPortfolioSlabMetrics,
 } from '../data/calculations';
-import { DynamicBuildingSkyline } from '../components/DynamicBuildingSkyline';
-import { DynamicSalesMap } from '../components/DynamicSalesMap';
+import { PROJECTS, TOWERS_DATA, FLOORS_DATA } from '../data/seedData';
 import { ProjectDetailDrawer } from '../components/ProjectDetailDrawer';
 
-const CITIES = ['Mumbai', 'Gurugram', 'Bengaluru', 'Pune', 'All locations'];
-const PERIODS = ['Q3 FY25', 'Q2 FY25', 'Q1 FY25', 'FY24'];
+const CITIES = [
+  'All Locations',
+  'Mumbai',
+  'Thane',
+  'Navi Mumbai',
+  'Pune',
+  'Bengaluru',
+  'Hyderabad',
+  'Gurugram',
+];
 
 export function PortfolioPage() {
   const { state, setTab, selectProject, selectNC, selectWIR, setFilter } = useApp();
 
-  const [activePeriod, setActivePeriod] = useState('Q3 FY25');
-  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
-  const [projectSection, setProjectSection] = useState<'all' | 'attention' | 'onTrack'>('all');
-  const [projectSearch, setProjectSearch] = useState('');
+  const [selectedCity, setSelectedCity] = useState<string>('All Locations');
+  const [projectTableTab, setProjectTableTab] = useState<'attention' | 'all'>('attention');
+  const [hoveredFloor, setHoveredFloor] = useState<{
+    towerName: string;
+    floorNumber: number;
+    status: string;
+    detail?: string;
+  } | null>(null);
 
-  // Active City Scope
-  const activeCity = state.filters.city || 'Mumbai';
-
-  const handleCityChange = (city: string) => {
-    setFilter('city', city);
-    setCityDropdownOpen(false);
-  };
-
-  // Dynamic Portfolio KPIs scoped to active city
+  // Dynamic Portfolio KPIs scoped to geographic selection
   const kpis = useMemo(
-    () => getOverviewPortfolioKPIs(activeCity, state.weights, state.wirs, state.ncs),
-    [activeCity, state.weights, state.wirs, state.ncs]
+    () => getOverviewPortfolioKPIs(selectedCity, state.weights, state.wirs, state.ncs),
+    [selectedCity, state.weights, state.wirs, state.ncs]
   );
 
-  // Dynamic Commercial / Units Sold scoped to active city
-  const commercial = useMemo(
-    () => getCXOCommercialInventory(activeCity),
-    [activeCity]
+  // Commercial Units Sold Metrics
+  const commercialData = useMemo(
+    () => getCXOCommercialInventory(selectedCity),
+    [selectedCity]
   );
 
-  // Dynamic Project Metrics scoped to active city
+  // All project metrics scoped to city
   const allProjectMetrics = useMemo(
     () => getAllProjectMetrics(state.weights, state.wirs, state.ncs),
     [state.weights, state.wirs, state.ncs]
   );
 
-  const cityScopedProjects = useMemo(() => {
-    let projs = allProjectMetrics;
-    if (activeCity !== 'All locations' && activeCity !== 'All Locations') {
-      if (activeCity.toLowerCase() === 'mumbai') {
-        projs = projs.filter(m => m.project.city === 'Mumbai' || m.project.city === 'Navi Mumbai' || m.project.city === 'Thane');
-      } else {
-        projs = projs.filter(m => m.project.city.toLowerCase() === activeCity.toLowerCase());
-      }
+  const scopedProjectMetrics = useMemo(() => {
+    if (selectedCity === 'All Locations') return allProjectMetrics;
+    if (selectedCity.toLowerCase() === 'mumbai') {
+      return allProjectMetrics.filter(m => m.project.city === 'Mumbai' || m.project.city === 'Navi Mumbai' || m.project.city === 'Thane');
+    }
+    return allProjectMetrics.filter(m => m.project.city.toLowerCase() === selectedCity.toLowerCase());
+  }, [allProjectMetrics, selectedCity]);
+
+  // Projects requiring attention vs all projects
+  const attentionProjects = useMemo(() => {
+    return scopedProjectMetrics.filter(m => m.healthCategory === 'Critical' || m.healthCategory === 'At Risk');
+  }, [scopedProjectMetrics]);
+
+  // Dynamic Skyline Towers
+  const skylineTowers = useMemo(() => {
+    if (selectedCity === 'All Locations') {
+      // 4 signature representative towers across regions
+      return [
+        {
+          id: 'T010',
+          projectId: 'P004',
+          projectName: 'Riverstone Towers',
+          towerName: 'Tower 1',
+          city: 'Gurugram',
+          totalFloors: 24,
+          completedFloors: 4,
+          activeFloor: 6,
+          criticalFloor: 5,
+          criticalIssue: 'Concrete cube-test failure & honeycombing',
+          progressPct: 48,
+          delayDays: -38,
+        },
+        {
+          id: 'T001',
+          projectId: 'P001',
+          projectName: 'Meridian Heights',
+          towerName: 'Tower A',
+          city: 'Mumbai',
+          totalFloors: 18,
+          completedFloors: 9,
+          activeFloor: 10,
+          progressPct: 61,
+          delayDays: -3,
+        },
+        {
+          id: 'T018',
+          projectId: 'P007',
+          projectName: 'Vivanta Sereno',
+          towerName: 'Tower 1',
+          city: 'Thane',
+          totalFloors: 15,
+          completedFloors: 9,
+          activeFloor: 10,
+          progressPct: 65,
+          delayDays: 0,
+        },
+        {
+          id: 'T004',
+          projectId: 'P002',
+          projectName: 'Northgate Residences',
+          towerName: 'Block 1',
+          city: 'Bengaluru',
+          totalFloors: 12,
+          completedFloors: 12,
+          activeFloor: 12,
+          progressPct: 74,
+          delayDays: 3,
+        },
+      ];
     }
 
-    // Section filtering
-    if (projectSection === 'attention') {
-      projs = projs.filter(m => m.healthCategory === 'Critical' || m.healthCategory === 'At Risk');
-    } else if (projectSection === 'onTrack') {
-      projs = projs.filter(m => m.healthCategory === 'On Track');
-    }
+    // Filter to towers of projects in this specific city
+    const cityProjIds = PROJECTS.filter(p => {
+      if (selectedCity.toLowerCase() === 'mumbai') return p.city === 'Mumbai' || p.city === 'Navi Mumbai' || p.city === 'Thane';
+      return p.city.toLowerCase() === selectedCity.toLowerCase();
+    }).map(p => p.id);
 
-    // Search filter
-    if (projectSearch.trim()) {
-      const q = projectSearch.toLowerCase();
-      projs = projs.filter(m =>
-        m.project.name.toLowerCase().includes(q) ||
-        m.project.city.toLowerCase().includes(q) ||
-        m.project.projectManager.toLowerCase().includes(q)
-      );
-    }
+    const filteredTowers = TOWERS_DATA.filter(t => cityProjIds.includes(t.projectId));
 
-    return projs;
-  }, [allProjectMetrics, activeCity, projectSection, projectSearch]);
+    return filteredTowers.slice(0, 4).map(t => {
+      const proj = PROJECTS.find(p => p.id === t.projectId);
+      const isCritical = t.projectId === 'P004' && t.name === 'Tower 1';
+      return {
+        id: t.id,
+        projectId: t.projectId,
+        projectName: proj?.name || '',
+        towerName: t.name,
+        city: proj?.city || '',
+        totalFloors: t.totalFloors,
+        completedFloors: t.completedFloors,
+        activeFloor: Math.min(t.totalFloors, t.completedFloors + 1),
+        criticalFloor: isCritical ? 5 : undefined,
+        criticalIssue: isCritical ? 'Concrete cube-test failure & honeycombing' : undefined,
+        progressPct: t.actualProgress,
+        delayDays: t.varianceDays,
+      };
+    });
+  }, [selectedCity]);
 
-  // Priority Critical Issues scoped to city
+  // Priority Operational Critical Issues
   const alerts = useMemo(
-    () => getNeedsAttentionAlerts(activeCity, state.wirs, state.ncs, state.weights),
-    [activeCity, state.wirs, state.ncs, state.weights]
+    () => getNeedsAttentionAlerts(selectedCity, state.wirs, state.ncs, state.weights),
+    [selectedCity, state.wirs, state.ncs, state.weights]
   );
 
-  // Count of total buildings in this city
-  const totalCityBuildings = useMemo(() => {
-    const list = PROJECTS.filter(p => {
-      if (activeCity === 'All locations' || activeCity === 'All Locations') return true;
-      if (activeCity.toLowerCase() === 'mumbai') {
-        return p.city === 'Mumbai' || p.city === 'Navi Mumbai' || p.city === 'Thane';
-      }
-      return p.city.toLowerCase() === activeCity.toLowerCase();
-    });
-    return list.reduce((sum, p) => sum + p.totalBuildings, 0);
-  }, [activeCity]);
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 pb-12">
       {/* ============================================================
-          PAGE HEADER: Title, City Selector, Reporting Periods
+          SECTION 5: PORTFOLIO FILTERS (Segmented Location Selector)
           ============================================================ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-            Portfolio at a glance
-          </h1>
-          {/* Location Selector Dropdown */}
-          <div className="relative inline-block mt-1">
-            <button
-              onClick={() => setCityDropdownOpen(!cityDropdownOpen)}
-              className="flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#0F172A] font-medium transition-colors"
-            >
-              <MapPin size={13} className="text-[#64748B]" />
-              <span className="font-semibold text-slate-800">{activeCity}</span>
-              <ChevronDown size={12} className="text-[#64748B]" />
-            </button>
+      <div className="flex items-center justify-between gap-4 pb-1 border-b border-[#E5E7EB]">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+          {CITIES.map(city => {
+            const active = selectedCity === city;
+            return (
+              <button
+                key={city}
+                onClick={() => {
+                  setSelectedCity(city);
+                  setFilter('city', city === 'All Locations' ? '' : city);
+                }}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all',
+                  active
+                    ? 'bg-[#17191D] text-white font-semibold shadow-xs'
+                    : 'text-[#737B88] hover:text-[#17191D] hover:bg-white'
+                )}
+              >
+                {city}
+              </button>
+            );
+          })}
+        </div>
 
-            {cityDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-44 bg-white border border-[#E2E8F0] rounded-xl shadow-lg p-1.5 z-50 animate-in fade-in">
-                {CITIES.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => handleCityChange(c)}
-                    className={clsx(
-                      'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                      activeCity === c ? 'bg-blue-50 text-blue-700 font-bold' : 'text-[#0F172A] hover:bg-slate-50'
-                    )}
-                  >
-                    {c}
-                  </button>
-                ))}
+        <div className="text-xs text-[#737B88] font-medium hidden sm:block">
+          {scopedProjectMetrics.length} Active {scopedProjectMetrics.length === 1 ? 'Project' : 'Projects'}
+        </div>
+      </div>
+
+      {/* ============================================================
+          SECTION 6: EXECUTIVE KPI STRIP (4 Prominent Cards)
+          Make the important information impossible to miss.
+          ============================================================ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Construction Progress */}
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="text-xs text-[#737B88] font-medium">Construction progress</div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-semibold text-[#17191D] tracking-tight tabular-nums">
+                {kpis.overallProgress}%
+              </span>
+            </div>
+            <div className="text-xs text-[#737B88] mt-1.5 flex items-center gap-1.5">
+              <span>{kpis.overallTargetProgress}% planned</span>
+              <span>·</span>
+              <span className={clsx(
+                'font-medium',
+                kpis.progressVariance < 0 ? 'text-[#B7791F]' : 'text-[#16805D]'
+              )}>
+                {kpis.progressVariance < 0
+                  ? `${Math.abs(kpis.progressVariance)} pts behind`
+                  : `${kpis.progressVariance} pts ahead`}
+              </span>
+            </div>
+          </div>
+
+          {/* Thin Refined Progress Bar */}
+          <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full mt-4 overflow-hidden">
+            <div
+              className="h-full bg-[#00594F] rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(100, Math.max(0, kpis.overallProgress))}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Card 2: Residential Units Sold (Inventory Strip Blocks) */}
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="text-xs text-[#737B88] font-medium">Units sold</div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl sm:text-4xl font-semibold text-[#17191D] tracking-tight tabular-nums">
+                {commercialData.soldUnits.toLocaleString()}
+              </span>
+              <span className="text-xs font-medium text-[#737B88]">
+                ({commercialData.soldPercent}% sold)
+              </span>
+            </div>
+            <div className="text-xs text-[#737B88] mt-1.5">
+              {commercialData.soldUnits.toLocaleString()} sold / {commercialData.totalUnits.toLocaleString()} total · {commercialData.leftUnits.toLocaleString()} remaining
+            </div>
+          </div>
+
+          {/* Minimalist 20-Block Inventory Strip */}
+          <div className="mt-4 flex items-center gap-1">
+            {Array.from({ length: 20 }).map((_, i) => {
+              const isFilled = i < Math.round((commercialData.soldPercent / 100) * 20);
+              return (
+                <div
+                  key={i}
+                  className={clsx(
+                    'flex-1 h-2 rounded-2xs transition-colors',
+                    isFilled ? 'bg-[#00594F]' : 'bg-[#E5E7EB]'
+                  )}
+                  title={`${commercialData.soldPercent}% Sold`}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card 3: Quality Score */}
+        <div
+          onClick={() => setTab('quality')}
+          className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
+        >
+          <div>
+            <div className="flex items-center justify-between text-xs text-[#737B88] font-medium">
+              <span>Quality score</span>
+              <span className="text-[11px] text-[#00594F] font-semibold group-hover:underline flex items-center gap-0.5">
+                Breakdown <ChevronRight size={12} />
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-3xl sm:text-4xl font-semibold text-[#17191D] tracking-tight tabular-nums">
+                {kpis.portfolioQualityScore}
+              </span>
+              <span className="text-base font-normal text-[#737B88]">/100</span>
+            </div>
+            <div className="text-xs mt-1.5 flex items-center gap-1.5">
+              <span
+                className={clsx(
+                  'w-2 h-2 rounded-full',
+                  kpis.portfolioQualityScore >= 80
+                    ? 'bg-[#16805D]'
+                    : kpis.portfolioQualityScore >= 60
+                    ? 'bg-[#B7791F]'
+                    : 'bg-[#C63F43]'
+                )}
+              />
+              <span className="text-[#17191D] font-medium">
+                {kpis.portfolioQualityScore >= 80
+                  ? 'On track'
+                  : kpis.portfolioQualityScore >= 60
+                  ? 'Needs attention'
+                  : 'Critical risk'}
+              </span>
+              <span className="text-[#737B88]">· {kpis.portfolioWIRPassRate}% pass rate</span>
+            </div>
+          </div>
+
+          {/* Thin Horizontal Score Track */}
+          <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full mt-4 overflow-hidden">
+            <div
+              className={clsx(
+                'h-full rounded-full transition-all duration-300',
+                kpis.portfolioQualityScore >= 80
+                  ? 'bg-[#16805D]'
+                  : kpis.portfolioQualityScore >= 60
+                  ? 'bg-[#B7791F]'
+                  : 'bg-[#C63F43]'
+              )}
+              style={{ width: `${kpis.portfolioQualityScore}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Card 4: Critical Defects */}
+        <div
+          onClick={() => setTab('nc')}
+          className="bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors"
+        >
+          <div>
+            <div className="text-xs text-[#737B88] font-medium">Critical defect holds</div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className={clsx(
+                'text-3xl sm:text-4xl font-semibold tracking-tight tabular-nums',
+                kpis.criticalNCs > 0 ? 'text-[#C63F43]' : 'text-[#17191D]'
+              )}>
+                {kpis.criticalNCs}
+              </span>
+            </div>
+            <div className="text-xs mt-1.5 flex items-center gap-1.5">
+              <span
+                className={clsx(
+                  'w-2 h-2 rounded-full',
+                  kpis.criticalNCs > 0 ? 'bg-[#C63F43]' : 'bg-[#16805D]'
+                )}
+              />
+              <span className="text-[#17191D] font-medium">
+                {kpis.criticalNCs > 0
+                  ? 'Riverstone Towers: Floor 05 hold'
+                  : 'No active holds across sites'}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-[11px] text-[#737B88] mt-4 pt-1 border-t border-[#F1F5F9] flex items-center justify-between">
+            <span>{kpis.openNCs} total open findings</span>
+            <span>{kpis.overdueWIRs} overdue WIRs</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          MAIN CONTENT: TWO-COLUMN COMPOSITION (Section 7, 8, 9)
+          Left: WIP Construction Skyline (~54% width)
+          Right: Quality & Issues (~46% width)
+          ============================================================ */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* ==========================================================
+            LEFT PANEL: WIP CONSTRUCTION SKYLINE (Section 8)
+            ========================================================== */}
+        <div className="lg:col-span-7 bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-2xs flex flex-col justify-between">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-[#F1F5F9]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-semibold text-[#17191D] tracking-tight">
+                  Construction Progress
+                </span>
+                <span className="text-xs text-[#737B88]">
+                  · Building-by-building overview
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setTab('wip')}
+              className="text-xs font-medium text-[#00594F] hover:underline flex items-center gap-1"
+            >
+              View all projects <ChevronRight size={13} />
+            </button>
+          </div>
+
+          {/* Dynamic Architectural SVG Elevations Area */}
+          <div className="relative py-4 my-2 flex-1 min-h-[220px] flex items-end justify-around gap-4 bg-[#FAFBFB] rounded-lg border border-[#F1F5F9] px-4">
+            {skylineTowers.map(tower => {
+              const total = tower.totalFloors;
+              const completed = tower.completedFloors;
+              const active = tower.activeFloor;
+              const critical = tower.criticalFloor;
+
+              return (
+                <div
+                  key={tower.id}
+                  onClick={() => selectProject(tower.projectId)}
+                  className="flex-1 flex flex-col items-center cursor-pointer group transition-transform hover:-translate-y-0.5 max-w-[130px]"
+                >
+                  {/* Clean SVG Elevation Drawing */}
+                  <div className="w-full flex justify-center">
+                    <svg
+                      viewBox="0 0 100 220"
+                      className="w-24 h-48 overflow-visible"
+                    >
+                      {/* Architectural Rooftop Line & Antenna */}
+                      <line
+                        x1="50"
+                        y1={190 - total * 7 - 12}
+                        x2="50"
+                        y2={190 - total * 7}
+                        stroke="#737B88"
+                        strokeWidth="1.5"
+                      />
+                      <line
+                        x1="22"
+                        y1={190 - total * 7}
+                        x2="78"
+                        y2={190 - total * 7}
+                        stroke="#17191D"
+                        strokeWidth="1.5"
+                      />
+
+                      {/* Stacked Floor Rectangles (From ground to top floor) */}
+                      {Array.from({ length: total }).map((_, idx) => {
+                        const floorNum = idx + 1;
+                        const floorY = 190 - floorNum * 7;
+                        const isCompleted = floorNum <= completed;
+                        const isActive = floorNum === active;
+                        const isCritical = critical === floorNum;
+
+                        let fill = '#F1F5F9';
+                        let stroke = '#E5E7EB';
+
+                        if (isCritical) {
+                          fill = '#EF4444';
+                          stroke = '#DC2626';
+                        } else if (isCompleted) {
+                          fill = '#00594F';
+                          stroke = '#00473E';
+                        } else if (isActive) {
+                          fill = '#0D9488';
+                          stroke = '#0F766E';
+                        }
+
+                        return (
+                          <g key={floorNum}>
+                            <rect
+                              x="25"
+                              y={floorY}
+                              width="50"
+                              height="5.5"
+                              rx="0.5"
+                              fill={fill}
+                              stroke={stroke}
+                              strokeWidth="0.5"
+                              className="transition-colors"
+                              onMouseEnter={() =>
+                                setHoveredFloor({
+                                  towerName: `${tower.projectName} · ${tower.towerName}`,
+                                  floorNumber: floorNum,
+                                  status: isCritical
+                                    ? 'Critical Construction Hold'
+                                    : isCompleted
+                                    ? 'Completed Slab'
+                                    : isActive
+                                    ? 'In Progress Casting'
+                                    : 'Upcoming Slab',
+                                  detail: isCritical ? tower.criticalIssue : undefined,
+                                })
+                              }
+                              onMouseLeave={() => setHoveredFloor(null)}
+                            />
+
+                            {/* Precise Dot Marker on Critical Hold Floor */}
+                            {isCritical && (
+                              <circle
+                                cx="83"
+                                cy={floorY + 2.75}
+                                r="3"
+                                fill="#DC2626"
+                                stroke="#FFFFFF"
+                                strokeWidth="1"
+                              />
+                            )}
+                          </g>
+                        );
+                      })}
+
+                      {/* Foundation Ground Line */}
+                      <line
+                        x1="10"
+                        y1="191"
+                        x2="90"
+                        y2="191"
+                        stroke="#737B88"
+                        strokeWidth="1.5"
+                      />
+                      <rect
+                        x="20"
+                        y="191"
+                        width="60"
+                        height="3"
+                        fill="#CBD5E1"
+                        rx="0.5"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Below-Building Label */}
+                  <div className="text-center mt-2 w-full">
+                    <div className="text-xs font-medium text-[#17191D] group-hover:text-[#00594F] transition-colors truncate">
+                      {tower.projectName}
+                    </div>
+                    <div className="text-[11px] text-[#737B88] mt-0.5 tabular-nums">
+                      {tower.totalFloors} floors · {tower.progressPct}% complete
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Understated Hover Tooltip */}
+            {hoveredFloor && (
+              <div className="absolute top-3 left-3 bg-[#17191D] text-white text-xs px-3 py-1.5 rounded-lg shadow-lg pointer-events-none animate-in fade-in duration-100 z-20">
+                <div className="font-medium">
+                  {hoveredFloor.towerName} · Floor {hoveredFloor.floorNumber.toString().padStart(2, '0')}
+                </div>
+                <div className="text-[11px] text-slate-300 mt-0.5">
+                  {hoveredFloor.status}
+                </div>
+                {hoveredFloor.detail && (
+                  <div className="text-[11px] text-rose-300 font-medium mt-0.5">
+                    {hoveredFloor.detail}
+                  </div>
+                )}
               </div>
             )}
           </div>
+
+          {/* Architectural Legend */}
+          <div className="pt-3 border-t border-[#F1F5F9] flex items-center justify-between text-xs text-[#737B88]">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-2xs bg-[#00594F]" /> Completed
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-2xs bg-[#0D9488]" /> In progress
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-2xs bg-[#F1F5F9] border border-[#E5E7EB]" /> Upcoming
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626]" /> Defect hold
+              </span>
+            </div>
+
+            <span className="text-[11px] text-[#737B88]">
+              Select any building to view full structural packages
+            </span>
+          </div>
         </div>
 
-        {/* Right: Period Tabs & Pagination Arrows */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <div className="flex items-center bg-[#F1F5F9] p-0.5 rounded-xl border border-[#E2E8F0]">
-            {PERIODS.map(p => (
+        {/* ==========================================================
+            RIGHT PANEL: QUALITY AND CRITICAL ISSUES (Section 9)
+            ========================================================== */}
+        <div className="lg:col-span-5 bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-2xs flex flex-col justify-between">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+              <span className="text-base font-semibold text-[#17191D] tracking-tight">
+                Quality & Issues
+              </span>
               <button
-                key={p}
-                onClick={() => setActivePeriod(p)}
-                className={clsx(
-                  'px-3 py-1 rounded-lg text-xs font-semibold transition-all',
-                  activePeriod === p
-                    ? 'bg-white text-[#0F172A] shadow-xs font-bold'
-                    : 'text-[#64748B] hover:text-[#0F172A]'
-                )}
+                onClick={() => setTab('nc')}
+                className="text-xs font-medium text-[#00594F] hover:underline"
               >
-                {p}
+                View all issues →
               </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1 text-[#64748B]">
-            <button className="w-7 h-7 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center hover:bg-slate-50 transition-colors">
-              <ChevronLeft size={13} />
-            </button>
-            <button className="w-7 h-7 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center hover:bg-slate-50 transition-colors">
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ============================================================
-          TOP METRICS ROW (5 Cards in 1 Row — Dynamic to City)
-          ============================================================ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Construction Progress */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-              <BarChart3 size={16} />
             </div>
-            <span className="text-xs font-medium text-[#64748B]">Construction Progress</span>
-          </div>
 
-          <div className="my-2.5 flex items-baseline justify-between">
-            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-              {kpis.overallProgress}%
-            </span>
-            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#C63F43]">
-              {kpis.progressVariance >= 0 ? `+${kpis.progressVariance}%` : `${kpis.progressVariance}%`}
-            </span>
-          </div>
-
-          {/* Green Progress Bar */}
-          <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#10B981] rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(100, kpis.overallProgress)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Card 2: Buildings Under Construction */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-              <Building2 size={16} />
-            </div>
-            <span className="text-xs font-medium text-[#64748B]">Buildings Under Construction</span>
-          </div>
-
-          <div className="my-2.5 flex items-baseline justify-between">
-            <div>
-              <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-                {totalCityBuildings}
-              </span>
-              <span className="text-sm font-medium text-[#94A3B8] ml-1">
-                / {activeCity === 'All locations' ? 100 : totalCityBuildings * 10}
-              </span>
-            </div>
-            <Building2 size={20} className="text-slate-300 stroke-1" />
-          </div>
-
-          {/* Blue Progress Bar */}
-          <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-            <div className="h-full bg-[#315EFB] rounded-full" style={{ width: '15%' }} />
-          </div>
-        </div>
-
-        {/* Card 3: Units Sold */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-              <Home size={16} />
-            </div>
-            <span className="text-xs font-medium text-[#64748B]">Units Sold</span>
-          </div>
-
-          <div className="my-1.5 flex items-center justify-between">
-            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-              {commercial.soldUnits}
-            </span>
-
-            {/* Donut Chart with Sold % */}
-            <div className="flex items-center gap-2">
-              <svg className="w-9 h-9 transform -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#E2E8F0" strokeWidth="3.5" />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="14"
-                  fill="none"
-                  stroke="#10B981"
-                  strokeWidth="3.5"
-                  strokeDasharray={2 * Math.PI * 14}
-                  strokeDashoffset={2 * Math.PI * 14 * (1 - commercial.soldPercent / 100)}
-                  strokeLinecap="round"
-                />
-              </svg>
+            {/* Compact Quality Summary Row */}
+            <div className="grid grid-cols-4 gap-2 my-4 p-3 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9] text-center">
               <div>
-                <div className="text-xs font-extrabold text-[#0F172A] leading-tight">
-                  {commercial.soldPercent}%
+                <div className="text-base font-semibold text-[#17191D] tabular-nums">
+                  {kpis.portfolioQualityScore}/100
                 </div>
-                <div className="text-[9px] text-[#94A3B8] font-medium leading-none">
-                  of {commercial.totalUnits}
+                <div className="text-[11px] text-[#737B88] mt-0.5">Quality score</div>
+              </div>
+              <div>
+                <div className="text-base font-semibold text-[#17191D] tabular-nums">
+                  {kpis.portfolioWIRPassRate}%
+                </div>
+                <div className="text-[11px] text-[#737B88] mt-0.5">1st-pass WIR</div>
+              </div>
+              <div>
+                <div className="text-base font-semibold text-[#17191D] tabular-nums">
+                  {kpis.openNCs}
+                </div>
+                <div className="text-[11px] text-[#737B88] mt-0.5">Open NCs</div>
+              </div>
+              <div>
+                <div className={clsx(
+                  'text-base font-semibold tabular-nums',
+                  kpis.overdueWIRs > 0 ? 'text-[#B7791F]' : 'text-[#17191D]'
+                )}>
+                  {kpis.overdueWIRs}
+                </div>
+                <div className="text-[11px] text-[#737B88] mt-0.5">Overdue WIRs</div>
+              </div>
+            </div>
+
+            {/* Top Critical Issues List (Ranked by severity & urgency) */}
+            <div className="space-y-2 mt-4">
+              {/* Issue 1 */}
+              <div
+                onClick={() => {
+                  setTab('nc');
+                  selectNC('NC-0001');
+                }}
+                className="p-3 rounded-lg border border-[#E5E7EB] hover:border-slate-300 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 font-medium text-[#17191D]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626]" />
+                    <span className="text-[#C63F43] font-semibold">Critical</span>
+                    <span>·</span>
+                    <span>Riverstone Towers</span>
+                  </div>
+                  <span className="text-[11px] text-[#737B88]">Open 7 days</span>
+                </div>
+                <div className="text-xs font-medium text-[#17191D] mt-1 group-hover:text-[#00594F] transition-colors">
+                  Floor 05 — Concrete cube-test failure & column honeycombing
+                </div>
+                <div className="text-[11px] text-[#737B88] mt-0.5">
+                  Structural stop-work notice issued to ABC Civil Works
+                </div>
+              </div>
+
+              {/* Issue 2 */}
+              <div
+                onClick={() => {
+                  setTab('wir');
+                  selectWIR('WIR-0021');
+                }}
+                className="p-3 rounded-lg border border-[#E5E7EB] hover:border-slate-300 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 font-medium text-[#17191D]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                    <span className="text-[#B7791F] font-semibold">Overdue</span>
+                    <span>·</span>
+                    <span>Meridian Heights</span>
+                  </div>
+                  <span className="text-[11px] text-[#737B88]">3 days overdue</span>
+                </div>
+                <div className="text-xs font-medium text-[#17191D] mt-1 group-hover:text-[#00594F] transition-colors">
+                  Tower B — WIR inspection pending review beyond 7d SLA
+                </div>
+                <div className="text-[11px] text-[#737B88] mt-0.5">
+                  Holding slab reinforcement sign-off for casting
+                </div>
+              </div>
+
+              {/* Issue 3 */}
+              <div
+                onClick={() => {
+                  setTab('nc');
+                  selectNC('NC-0006');
+                }}
+                className="p-3 rounded-lg border border-[#E5E7EB] hover:border-slate-300 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 font-medium text-[#17191D]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                    <span className="text-[#B7791F] font-semibold">High</span>
+                    <span>·</span>
+                    <span>Northgate Residences</span>
+                  </div>
+                  <span className="text-[11px] text-[#737B88]">Open 4 days</span>
+                </div>
+                <div className="text-xs font-medium text-[#17191D] mt-1 group-hover:text-[#00594F] transition-colors">
+                  Block 2 — Rebar spacing deviation in column ties
+                </div>
+                <div className="text-[11px] text-[#737B88] mt-0.5">
+                  Assigned to Kapoor Finishing Works for re-tying
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="h-1.5" />
-        </div>
-
-        {/* Card 4: Overdue WIRs */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-              <ClipboardCheck size={16} />
-            </div>
-            <span className="text-xs font-medium text-[#64748B]">Overdue WIRs</span>
-          </div>
-
-          <div className="my-1.5 flex items-baseline justify-between">
-            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-              {kpis.overdueWIRs}
-            </span>
-            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#EA580C]">
-              {kpis.overdueWIRs > 0 ? `↑ ${kpis.overdueWIRs}` : 'On SLA'}
-            </span>
-          </div>
-
-          {/* Red Sparkline Curve */}
-          <div className="w-full h-4 flex items-end">
-            <svg className="w-full h-3.5 overflow-visible" viewBox="0 0 100 20" preserveAspectRatio="none">
-              <path
-                d="M0,16 Q20,15 35,18 T70,10 T100,2"
-                fill="none"
-                stroke="#F87171"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card 5: Open NCs */}
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-rose-500">
-              <AlertTriangle size={16} />
-            </div>
-            <span className="text-xs font-medium text-[#64748B]">Open NCs</span>
-          </div>
-
-          <div className="my-1.5 flex items-baseline justify-between">
-            <span className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight">
-              {kpis.openNCs}
-            </span>
-            <span className="text-xs font-semibold text-[#C63F43]">
-              {kpis.criticalNCs} critical
-            </span>
-          </div>
-
-          {/* Mini Red Vertical Bars Histogram */}
-          <div className="w-full flex items-end justify-end gap-1 h-4">
-            <span className="w-1.5 h-2 bg-rose-200 rounded-2xs" />
-            <span className="w-1.5 h-3.5 bg-rose-300 rounded-2xs" />
-            <span className="w-1.5 h-2.5 bg-rose-300 rounded-2xs" />
-            <span className="w-1.5 h-4 bg-rose-400 rounded-2xs" />
-            <span className="w-1.5 h-3 bg-rose-400 rounded-2xs" />
+          <div className="pt-3 border-t border-[#F1F5F9] text-xs text-[#737B88]">
+            Quality score incorporates inspection velocity, NC severity aging, and internal audit scores.
           </div>
         </div>
       </div>
 
       {/* ============================================================
-          MAIN 2-COLUMN SECTION
-          Left Column (8/12 width): Construction Status Skyline + Projects Table
-          Right Column (4/12 width): Quality & Critical Issues + Vector Map
+          SECTION 10: SECONDARY ROW — SALES OVERVIEW & DYNAMIC MAP
           ============================================================ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* ==========================================================
-            LEFT COLUMN (8 cols out of 12)
-            ========================================================== */}
-        <div className="lg:col-span-8 space-y-4">
-          {/* Card 1: Construction Status with Dynamic Building Skyline */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-            {/* Header with Title and Legend */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-                  <Building2 size={15} />
-                </div>
-                <h2 className="text-sm font-bold text-[#0F172A]">Construction Status</h2>
-              </div>
-
-              {/* Minimal Clean Legend (Simple dots, no AI pill badges) */}
-              <div className="flex items-center gap-3.5 text-xs text-[#64748B] flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#10B981]" /> Completed
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Card 1: Sales Overview (Comparative Progress Bars) */}
+        <div className="lg:col-span-7 bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+              <div>
+                <span className="text-base font-semibold text-[#17191D] tracking-tight">
+                  Sales Overview
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#315EFB]" /> Under Construction
+                <span className="text-xs text-[#737B88] ml-2">
+                  · Residential inventory absorption
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#CBD5E1]" /> Planned
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#EF4444]" /> At Risk
-                </span>
-              </div>
-            </div>
-
-            {/* Dynamic Building Skyline: Simple stacked rectangles with architectural floor details */}
-            <DynamicBuildingSkyline
-              selectedCity={activeCity}
-              onSelectProject={(id) => selectProject(id)}
-            />
-          </div>
-
-          {/* Card 2: Projects Table with Proper Filtering & Sectioning */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-            {/* Header & Filter Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-                  <Building2 size={15} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-[#0F172A]">Projects</h2>
-                  <p className="text-[11px] text-[#64748B]">
-                    {cityScopedProjects.length} active site{cityScopedProjects.length !== 1 ? 's' : ''} in {activeCity}
-                  </p>
-                </div>
-              </div>
-
-              {/* Minimal Sectioning Tabs & Search (Restrained design, not overwhelming) */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center bg-[#F8FAFC] p-0.5 rounded-lg border border-[#E2E8F0] text-xs">
-                  <button
-                    onClick={() => setProjectSection('all')}
-                    className={clsx(
-                      'px-2.5 py-1 rounded-md font-medium transition-colors',
-                      projectSection === 'all' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-900'
-                    )}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setProjectSection('attention')}
-                    className={clsx(
-                      'px-2.5 py-1 rounded-md font-medium transition-colors',
-                      projectSection === 'attention' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-900'
-                    )}
-                  >
-                    Needs Attention
-                  </button>
-                  <button
-                    onClick={() => setProjectSection('onTrack')}
-                    className={clsx(
-                      'px-2.5 py-1 rounded-md font-medium transition-colors',
-                      projectSection === 'onTrack' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-900'
-                    )}
-                  >
-                    On Track
-                  </button>
-                </div>
-
-                <div className="relative">
-                  <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={projectSearch}
-                    onChange={(e) => setProjectSearch(e.target.value)}
-                    placeholder="Filter project..."
-                    className="h-7 w-32 pl-7 pr-2 text-xs rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Table with Minimal Restrained Status Indicators */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left min-w-[640px]">
-                <thead>
-                  <tr className="text-[#94A3B8] font-medium border-b border-slate-100">
-                    <th className="py-2.5 font-medium">Project</th>
-                    <th className="py-2.5 font-medium">City</th>
-                    <th className="py-2.5 font-medium">Status</th>
-                    <th className="py-2.5 font-medium">Progress</th>
-                    <th className="py-2.5 font-medium">Units Sold</th>
-                    <th className="py-2.5 font-medium text-center">Quality</th>
-                    <th className="py-2.5 font-medium">Open NCs</th>
-                    <th className="py-2.5 font-medium">Manager</th>
-                    <th className="py-2.5"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {cityScopedProjects.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-8 text-center text-xs text-slate-400">
-                        No projects match the selected filter in {activeCity}.
-                      </td>
-                    </tr>
-                  ) : (
-                    cityScopedProjects.map(m => {
-                      const isCritical = m.healthCategory === 'Critical';
-                      const isAtRisk = m.healthCategory === 'At Risk';
-                      const soldPct = m.project.totalUnits > 0
-                        ? Math.round((m.project.soldUnits / m.project.totalUnits) * 100)
-                        : 0;
-
-                      return (
-                        <tr
-                          key={m.project.id}
-                          onClick={() => selectProject(m.project.id)}
-                          className="hover:bg-slate-50/70 cursor-pointer transition-colors"
-                        >
-                          <td className="py-3 font-bold text-[#0F172A]">{m.project.name}</td>
-                          <td className="py-3 text-[#64748B]">{m.project.city}</td>
-
-                          {/* Minimal Status Dot (No AI Bubble Pills) */}
-                          <td className="py-3">
-                            <span className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                              <span
-                                className={clsx(
-                                  'w-2 h-2 rounded-full',
-                                  isCritical ? 'bg-[#EF4444]' : isAtRisk ? 'bg-[#F59E0B]' : 'bg-[#10B981]'
-                                )}
-                              />
-                              {m.healthCategory}
-                            </span>
-                          </td>
-
-                          {/* Progress Bar */}
-                          <td className="py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-[#0F172A] font-mono">
-                                {m.project.progressPercentage}%
-                              </span>
-                              <div className="w-14 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                                <div
-                                  className={clsx(
-                                    'h-full rounded-full',
-                                    isCritical ? 'bg-[#EF4444]' : isAtRisk ? 'bg-[#315EFB]' : 'bg-[#10B981]'
-                                  )}
-                                  style={{ width: `${m.project.progressPercentage}%` }}
-                                />
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Units Sold */}
-                          <td className="py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-[#0F172A] font-mono">
-                                {m.project.soldUnits} / {m.project.totalUnits}
-                              </span>
-                              <div className="w-12 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                                <div className="h-full bg-[#10B981] rounded-full" style={{ width: `${soldPct}%` }} />
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Quality Score (Clean Number) */}
-                          <td className="py-3 text-center">
-                            <span
-                              className={clsx(
-                                'font-mono font-bold',
-                                m.qualityScore < 60 ? 'text-[#C63F43]' : m.qualityScore < 80 ? 'text-[#B7791F]' : 'text-[#16805D]'
-                              )}
-                            >
-                              {m.qualityScore}
-                            </span>
-                          </td>
-
-                          {/* Open NCs */}
-                          <td className="py-3">
-                            <span className="font-bold text-[#0F172A] font-mono mr-1">
-                              {m.openNCs}
-                            </span>
-                            {m.criticalOpenNCs > 0 && (
-                              <span className="text-[#C63F43] font-medium text-[11px]">
-                                ({m.criticalOpenNCs} critical)
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="py-3 text-[#64748B]">{m.project.projectManager}</td>
-                          <td className="py-3 text-right text-slate-300">
-                            <ChevronRight size={14} />
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* ==========================================================
-            RIGHT COLUMN (4 cols out of 12)
-            Quality & Critical Issues + Dynamic Sales Map
-            ========================================================== */}
-        <div className="lg:col-span-4 space-y-4">
-          {/* Card 1: Quality & Critical Issues */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-            {/* Header */}
-            <div className="flex items-center gap-2.5 pb-3">
-              <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-                <ShieldCheck size={15} />
-              </div>
-              <h2 className="text-sm font-bold text-[#0F172A]">Quality & Critical Issues</h2>
-            </div>
-
-            {/* Quality Score Donut Meter + 3 Metric Bars */}
-            <div className="flex items-center gap-5 my-2">
-              {/* Donut Circle */}
-              <div className="relative w-24 h-24 flex items-center justify-center flex-shrink-0">
-                <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    fill="none"
-                    stroke="#E2E8F0"
-                    strokeWidth="8"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    fill="none"
-                    stroke="#0D9488"
-                    strokeWidth="8"
-                    strokeDasharray={2 * Math.PI * 40}
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - kpis.portfolioQualityScore / 100)}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-black text-[#0F172A] leading-tight">
-                    {kpis.portfolioQualityScore}
-                  </span>
-                  <span className="text-[10px] text-[#94A3B8] font-medium leading-none">/ 100</span>
-                </div>
-              </div>
-
-              {/* 3 Metric Progress Bars */}
-              <div className="flex-1 space-y-2">
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-[#64748B] font-medium">WIR Pass Rate</span>
-                    <span className="font-extrabold text-[#0F172A]">{kpis.portfolioWIRPassRate}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#10B981] rounded-full" style={{ width: `${kpis.portfolioWIRPassRate}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-[#64748B] font-medium">NC Health</span>
-                    <span className="font-extrabold text-[#0F172A]">85%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#0D9488] rounded-full" style={{ width: '85%' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-[#64748B] font-medium">Audit Score</span>
-                    <span className="font-extrabold text-[#0F172A]">72%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#315EFB] rounded-full" style={{ width: '72%' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-slate-100 my-4" />
-
-            {/* Top Critical Issues List (Dynamic to city) */}
-            <div>
-              <div className="flex items-center justify-between pb-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={15} className="text-rose-500" />
-                  <span className="text-xs font-bold text-[#0F172A]">Top Critical Issues</span>
-                </div>
-                <button
-                  onClick={() => setTab('nc')}
-                  className="text-xs font-bold text-[#315EFB] hover:underline"
-                >
-                  See all &gt;
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {alerts.length === 0 ? (
-                  <div className="text-xs text-slate-400 py-3 text-center">
-                    No critical defect issues reported in {activeCity}.
-                  </div>
-                ) : (
-                  alerts.slice(0, 3).map((alert, idx) => (
-                    <div
-                      key={alert.id}
-                      onClick={() => {
-                        if (alert.linkType === 'nc' && alert.ncId) {
-                          setTab('nc');
-                          selectNC(alert.ncId);
-                        } else if (alert.linkType === 'wir') {
-                          setTab('wir');
-                        } else {
-                          selectProject(alert.projectId);
-                        }
-                      }}
-                      className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
-                    >
-                      <img
-                        src={`/assets/defect-thumb-${(idx % 3) + 1}.png`}
-                        alt="Defect"
-                        className="w-10 h-10 rounded-lg object-cover border border-slate-200 flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        {/* Minimal Tag */}
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={clsx(
-                              'text-[10px] font-bold font-mono tracking-wider',
-                              alert.severity === 'critical' ? 'text-[#C63F43]' : 'text-[#EA580C]'
-                            )}
-                          >
-                            {alert.severity.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="text-xs font-bold text-[#0F172A] truncate mt-0.5 group-hover:text-[#315EFB] transition-colors">
-                          {alert.title}
-                        </div>
-                        <div className="text-[11px] text-[#64748B] truncate">
-                          {alert.projectName}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-[#94A3B8] text-xs flex-shrink-0">
-                        <ChevronRight size={13} />
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Dynamic Sales & Construction Map */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
-                  <BarChart3 size={15} />
-                </div>
-                <h2 className="text-sm font-bold text-[#0F172A]">Sales & Construction Map</h2>
               </div>
               <button
                 onClick={() => setTab('wip')}
-                className="text-slate-400 hover:text-[#0F172A] transition-colors"
-                title="View Full Geographic Operations"
+                className="text-xs font-medium text-[#00594F] hover:underline"
               >
-                <Maximize2 size={13} />
+                View sales details →
               </button>
             </div>
 
-            {/* Dynamic Map Component */}
-            <DynamicSalesMap
-              selectedCity={activeCity}
-              onSelectProject={(id) => selectProject(id)}
-            />
+            {/* Thin Horizontal Comparison Bars */}
+            <div className="space-y-4 my-4">
+              {commercialData.projectBreakdown.slice(0, 4).map(p => (
+                <div key={p.projectId} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-[#17191D]">{p.projectName}</span>
+                    <div className="flex items-center gap-3 text-xs tabular-nums text-[#737B88]">
+                      <span className="font-medium text-[#17191D]">
+                        {p.soldUnits.toLocaleString()} / {p.totalUnits.toLocaleString()} units
+                      </span>
+                      <span>·</span>
+                      <span className="font-semibold text-[#17191D]">{p.soldPercent}% sold</span>
+                      <span>·</span>
+                      <span>{p.leftUnits} remaining</span>
+                    </div>
+                  </div>
+
+                  <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
+                    <div
+                      className={clsx(
+                        'h-full rounded-full transition-all duration-300',
+                        p.soldPercent < 60 ? 'bg-[#B7791F]' : 'bg-[#00594F]'
+                      )}
+                      style={{ width: `${p.soldPercent}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+
+          <div className="pt-3 border-t border-[#F1F5F9] text-xs text-[#737B88] flex items-center justify-between">
+            <span>Portfolio sales achievement: {commercialData.soldPercent}%</span>
+            <span>Total inventory value: ₹{commercialData.totalInventoryCr} Cr</span>
+          </div>
+        </div>
+
+        {/* Card 2: Dynamic Project Map & Footprint */}
+        <div className="lg:col-span-5 bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-2xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+              <span className="text-base font-semibold text-[#17191D] tracking-tight">
+                Regional Footprint
+              </span>
+              <span className="text-xs text-[#737B88]">
+                {selectedCity}
+              </span>
+            </div>
+
+            {/* Dynamic Interactive SVG Map Canvas */}
+            <div className="relative my-3 w-full h-44 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9] overflow-hidden flex items-center justify-center">
+              <svg viewBox="0 0 400 200" className="w-full h-full">
+                {/* Coastal / Regional Contour Curves */}
+                <path
+                  d="M10,20 Q60,40 120,30 T240,60 T350,40 L400,200 L0,200 Z"
+                  fill="#F8FAFC"
+                  stroke="#E2E8F0"
+                  strokeWidth="1"
+                />
+                <path
+                  d="M80,0 Q130,50 160,110 T200,200"
+                  fill="none"
+                  stroke="#CBD5E1"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                />
+
+                {/* Geo Location Pins according to demo data */}
+                {/* 1. Gurugram */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => setSelectedCity('Gurugram')}
+                >
+                  <circle cx="140" cy="40" r="5" fill="#DC2626" />
+                  <circle cx="140" cy="40" r="10" fill="#DC2626" opacity="0.2" />
+                  <text x="150" y="44" fontSize="10" fill="#17191D" fontWeight="500">
+                    Gurugram (Riverstone)
+                  </text>
+                </g>
+
+                {/* 2. Mumbai / Thane */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => setSelectedCity('Mumbai')}
+                >
+                  <circle cx="100" cy="110" r="6" fill="#00594F" />
+                  <circle cx="100" cy="110" r="12" fill="#00594F" opacity="0.2" />
+                  <text x="112" y="114" fontSize="10" fill="#17191D" fontWeight="600">
+                    Mumbai MMR (3 Projects)
+                  </text>
+                </g>
+
+                {/* 3. Pune */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => setSelectedCity('Pune')}
+                >
+                  <circle cx="120" cy="145" r="4.5" fill="#00594F" />
+                  <text x="130" y="148" fontSize="9" fill="#737B88">
+                    Pune (Cedar Park)
+                  </text>
+                </g>
+
+                {/* 4. Bengaluru */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => setSelectedCity('Bengaluru')}
+                >
+                  <circle cx="130" cy="175" r="5" fill="#00594F" />
+                  <circle cx="130" cy="175" r="10" fill="#00594F" opacity="0.2" />
+                  <text x="142" y="179" fontSize="10" fill="#17191D" fontWeight="500">
+                    Bengaluru (Northgate)
+                  </text>
+                </g>
+
+                {/* 5. Hyderabad */}
+                <g
+                  className="cursor-pointer"
+                  onClick={() => setSelectedCity('Hyderabad')}
+                >
+                  <circle cx="190" cy="130" r="4.5" fill="#00594F" />
+                  <text x="200" y="133" fontSize="9" fill="#737B88">
+                    Hyderabad (Summit Greens)
+                  </text>
+                </g>
+              </svg>
+
+              {/* Floating Summary Card on Map */}
+              <div className="absolute top-2.5 right-2.5 bg-white/95 backdrop-blur-xs border border-[#E5E7EB] rounded-lg p-2.5 shadow-sm text-xs pointer-events-none">
+                <div className="font-semibold text-[#17191D] pb-1 border-b border-slate-100">
+                  {selectedCity}
+                </div>
+                <div className="space-y-0.5 text-[11px] text-[#737B88] mt-1 tabular-nums">
+                  <div>{scopedProjectMetrics.length} Active {scopedProjectMetrics.length === 1 ? 'project' : 'projects'}</div>
+                  <div>{commercialData.soldUnits.toLocaleString()} units sold ({commercialData.soldPercent}%)</div>
+                  <div>{kpis.overallProgress}% construction progress</div>
+                  <div>{kpis.portfolioQualityScore}/100 quality score</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-[#F1F5F9] text-xs text-[#737B88]">
+            Click any regional pin to filter the entire portfolio view.
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          SECTION 11: LOWER SECTION — PROJECTS TO WATCH
+          Clean table with proper sectioning and minimal typography.
+          ============================================================ */}
+      <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 shadow-2xs">
+        {/* Header & Sectioning Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F1F5F9]">
+          <div className="flex items-center gap-3">
+            <span className="text-base font-semibold text-[#17191D] tracking-tight">
+              Projects to Watch
+            </span>
+            <div className="flex items-center gap-1 bg-[#F1F5F9] p-0.5 rounded-lg border border-[#E5E7EB]">
+              <button
+                onClick={() => setProjectTableTab('attention')}
+                className={clsx(
+                  'px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                  projectTableTab === 'attention'
+                    ? 'bg-white text-[#17191D] font-semibold shadow-2xs'
+                    : 'text-[#737B88] hover:text-[#17191D]'
+                )}
+              >
+                Requiring Attention ({attentionProjects.length})
+              </button>
+              <button
+                onClick={() => setProjectTableTab('all')}
+                className={clsx(
+                  'px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                  projectTableTab === 'all'
+                    ? 'bg-white text-[#17191D] font-semibold shadow-2xs'
+                    : 'text-[#737B88] hover:text-[#17191D]'
+                )}
+              >
+                All Projects ({scopedProjectMetrics.length})
+              </button>
+            </div>
+          </div>
+
+          <span className="text-xs text-[#737B88]">
+            Sorted by urgency · Click any row to open executive deep dive
+          </span>
+        </div>
+
+        {/* Clean Table with Tabular Figures & Minimal Status Dots */}
+        <div className="overflow-x-auto mt-2">
+          <table className="w-full text-xs text-left min-w-[760px]">
+            <thead>
+              <tr className="text-[#737B88] font-medium border-b border-[#F1F5F9]">
+                <th className="py-2.5 font-medium">Project</th>
+                <th className="py-2.5 font-medium">Location</th>
+                <th className="py-2.5 font-medium">Progress</th>
+                <th className="py-2.5 font-medium text-right">Units Sold</th>
+                <th className="py-2.5 font-medium text-right">Quality</th>
+                <th className="py-2.5 font-medium text-right">Open NCs</th>
+                <th className="py-2.5 font-medium text-right">Overdue WIRs</th>
+                <th className="py-2.5 font-medium">Manager</th>
+                <th className="py-2.5 font-medium">Status</th>
+                <th className="py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F1F5F9]">
+              {(projectTableTab === 'attention' ? attentionProjects : scopedProjectMetrics).map(m => {
+                const isCritical = m.healthCategory === 'Critical';
+                const isAtRisk = m.healthCategory === 'At Risk';
+
+                return (
+                  <tr
+                    key={m.project.id}
+                    onClick={() => selectProject(m.project.id)}
+                    className="hover:bg-[#FAFBFB] cursor-pointer transition-colors group"
+                  >
+                    <td className="py-3 font-medium text-[#17191D] group-hover:text-[#00594F] transition-colors">
+                      {m.project.name}
+                    </td>
+                    <td className="py-3 text-[#737B88]">{m.project.city}</td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2 tabular-nums">
+                        <span className="font-medium text-[#17191D]">{m.project.progressPercentage}%</span>
+                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full overflow-hidden">
+                          <div
+                            className={clsx(
+                              'h-full rounded-full',
+                              isCritical ? 'bg-[#C63F43]' : isAtRisk ? 'bg-[#B7791F]' : 'bg-[#00594F]'
+                            )}
+                            style={{ width: `${m.project.progressPercentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 text-right tabular-nums text-[#737B88]">
+                      {m.project.soldUnits} / {m.project.totalUnits}
+                    </td>
+                    <td className="py-3 text-right font-medium tabular-nums text-[#17191D]">
+                      {m.qualityScore}/100
+                    </td>
+                    <td className="py-3 text-right tabular-nums">
+                      <span className={clsx(m.openNCs > 0 && isCritical ? 'text-[#C63F43] font-semibold' : 'text-[#737B88]')}>
+                        {m.openNCs}
+                      </span>
+                    </td>
+                    <td className="py-3 text-right tabular-nums text-[#737B88]">
+                      {m.overdueWIRs}
+                    </td>
+                    <td className="py-3 text-[#737B88]">{m.project.projectManager}</td>
+                    <td className="py-3">
+                      {/* Subtle Status Dots instead of Garish AI Pills */}
+                      <span className="flex items-center gap-1.5 font-medium text-xs">
+                        <span
+                          className={clsx(
+                            'w-1.5 h-1.5 rounded-full',
+                            isCritical ? 'bg-[#DC2626]' : isAtRisk ? 'bg-[#D97706]' : 'bg-[#16805D]'
+                          )}
+                        />
+                        <span className={clsx(
+                          isCritical ? 'text-[#C63F43]' : isAtRisk ? 'text-[#B7791F]' : 'text-[#737B88]'
+                        )}>
+                          {isCritical ? 'Critical' : isAtRisk ? 'Requires attention' : 'On track'}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="py-3 text-right text-slate-300 group-hover:text-[#17191D] transition-colors">
+                      <ChevronRight size={13} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
