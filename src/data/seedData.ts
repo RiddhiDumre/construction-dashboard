@@ -32,6 +32,13 @@ export interface Project {
   completedBuildings: number;
   underConstructionBuildings: number;
   delayedBuildings: number;
+  // Commercial & Unit Inventory for CXO
+  totalUnits: number;
+  soldUnits: number;
+  underConstructionUnits: number;
+  completedUnits: number;
+  inventoryValueCr: number;
+  bookedValueCr: number;
 }
 
 export const PROJECTS: Project[] = [
@@ -53,6 +60,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 0,
     underConstructionBuildings: 3,
     delayedBuildings: 1,
+    totalUnits: 420,
+    soldUnits: 336,
+    underConstructionUnits: 280,
+    completedUnits: 0,
+    inventoryValueCr: 840,
+    bookedValueCr: 672,
   },
   {
     id: 'P002',
@@ -72,6 +85,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 1,
     underConstructionBuildings: 3,
     delayedBuildings: 0,
+    totalUnits: 560,
+    soldUnits: 480,
+    underConstructionUnits: 380,
+    completedUnits: 120,
+    inventoryValueCr: 672,
+    bookedValueCr: 576,
   },
   {
     id: 'P003',
@@ -91,6 +110,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 0,
     underConstructionBuildings: 2,
     delayedBuildings: 1,
+    totalUnits: 320,
+    soldUnits: 224,
+    underConstructionUnits: 180,
+    completedUnits: 0,
+    inventoryValueCr: 480,
+    bookedValueCr: 336,
   },
   {
     id: 'P004',
@@ -110,6 +135,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 0,
     underConstructionBuildings: 3,
     delayedBuildings: 2,
+    totalUnits: 480,
+    soldUnits: 278,
+    underConstructionUnits: 340,
+    completedUnits: 0,
+    inventoryValueCr: 960,
+    bookedValueCr: 556,
   },
   {
     id: 'P005',
@@ -129,6 +160,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 1,
     underConstructionBuildings: 1,
     delayedBuildings: 0,
+    totalUnits: 350,
+    soldUnits: 315,
+    underConstructionUnits: 150,
+    completedUnits: 200,
+    inventoryValueCr: 700,
+    bookedValueCr: 630,
   },
   {
     id: 'P006',
@@ -148,6 +185,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 0,
     underConstructionBuildings: 3,
     delayedBuildings: 1,
+    totalUnits: 380,
+    soldUnits: 304,
+    underConstructionUnits: 260,
+    completedUnits: 0,
+    inventoryValueCr: 570,
+    bookedValueCr: 456,
   },
   {
     id: 'P007',
@@ -167,6 +210,12 @@ export const PROJECTS: Project[] = [
     completedBuildings: 0,
     underConstructionBuildings: 2,
     delayedBuildings: 0,
+    totalUnits: 340,
+    soldUnits: 238,
+    underConstructionUnits: 240,
+    completedUnits: 0,
+    inventoryValueCr: 510,
+    bookedValueCr: 357,
   },
 ];
 

@@ -223,6 +223,8 @@ export interface OverviewPortfolioKPIs {
   openNCs: number;
   criticalNCs: number;
   avgQualityScore: number;
+  portfolioQualityScore: number;
+  portfolioWIRPassRate: number;
 }
 
 export function getOverviewPortfolioKPIs(
@@ -265,6 +267,7 @@ export function getOverviewPortfolioKPIs(
   const avgQualityScore = allMetrics.length > 0
     ? Math.round(allMetrics.reduce((sum, m) => sum + m.qualityScore, 0) / allMetrics.length)
     : 0;
+  const portfolioWIRPassRate = calcWIRPassRate(scopedWIRs);
 
   return {
     overallProgress: totalProgress,
@@ -278,6 +281,8 @@ export function getOverviewPortfolioKPIs(
     openNCs: openNCs.length,
     criticalNCs,
     avgQualityScore,
+    portfolioQualityScore: avgQualityScore,
+    portfolioWIRPassRate,
   };
 }
 
@@ -626,3 +631,158 @@ export function getNeedsAttentionAlerts(
   const order = { critical: 0, high: 1, medium: 2 };
   return alerts.sort((a, b) => order[a.severity] - order[b.severity]).slice(0, 5);
 }
+
+// ── CXO Commercial Inventory Metrics ──────────────────────────
+export interface CommercialInventoryMetrics {
+  totalUnits: number;
+  soldUnits: number;
+  leftUnits: number;
+  soldPercent: number;
+  leftPercent: number;
+  underConstructionUnits: number;
+  completedUnits: number;
+  upcomingUnits: number;
+  totalInventoryCr: number;
+  bookedValueCr: number;
+  unrealizedValueCr: number;
+  projectBreakdown: {
+    projectId: string;
+    projectName: string;
+    city: string;
+    totalUnits: number;
+    soldUnits: number;
+    leftUnits: number;
+    soldPercent: number;
+    underConstructionUnits: number;
+    completedUnits: number;
+    bookedValueCr: number;
+    inventoryValueCr: number;
+  }[];
+}
+
+export function getCXOCommercialInventory(city?: string): CommercialInventoryMetrics {
+  let projects = PROJECTS;
+  if (city && city !== 'All locations' && city !== 'All Locations') {
+    if (city.toLowerCase() === 'mumbai') {
+      projects = projects.filter(p => p.city === 'Mumbai' || p.city === 'Navi Mumbai' || p.city === 'Thane');
+    } else {
+      projects = projects.filter(p => p.city.toLowerCase() === city.toLowerCase());
+    }
+  }
+
+  const totalUnits = projects.reduce((acc, p) => acc + (p.totalUnits || 0), 0);
+  const soldUnits = projects.reduce((acc, p) => acc + (p.soldUnits || 0), 0);
+  const underConstructionUnits = projects.reduce((acc, p) => acc + (p.underConstructionUnits || 0), 0);
+  const completedUnits = projects.reduce((acc, p) => acc + (p.completedUnits || 0), 0);
+  const totalInventoryCr = projects.reduce((acc, p) => acc + (p.inventoryValueCr || 0), 0);
+  const bookedValueCr = projects.reduce((acc, p) => acc + (p.bookedValueCr || 0), 0);
+
+  const leftUnits = Math.max(0, totalUnits - soldUnits);
+  const upcomingUnits = Math.max(0, totalUnits - underConstructionUnits - completedUnits);
+  const unrealizedValueCr = Math.max(0, totalInventoryCr - bookedValueCr);
+
+  const soldPercent = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
+  const leftPercent = 100 - soldPercent;
+
+  const projectBreakdown = projects.map(p => ({
+    projectId: p.id,
+    projectName: p.name,
+    city: p.city,
+    totalUnits: p.totalUnits || 0,
+    soldUnits: p.soldUnits || 0,
+    leftUnits: Math.max(0, (p.totalUnits || 0) - (p.soldUnits || 0)),
+    soldPercent: (p.totalUnits || 0) > 0 ? Math.round(((p.soldUnits || 0) / (p.totalUnits || 0)) * 100) : 0,
+    underConstructionUnits: p.underConstructionUnits || 0,
+    completedUnits: p.completedUnits || 0,
+    bookedValueCr: p.bookedValueCr || 0,
+    inventoryValueCr: p.inventoryValueCr || 0,
+  }));
+
+  return {
+    totalUnits,
+    soldUnits,
+    leftUnits,
+    soldPercent,
+    leftPercent,
+    underConstructionUnits,
+    completedUnits,
+    upcomingUnits,
+    totalInventoryCr,
+    bookedValueCr,
+    unrealizedValueCr,
+    projectBreakdown,
+  };
+}
+
+// ── Portfolio Slab-Wise Construction Metrics ───────────────────
+export interface PortfolioSlabMetrics {
+  totalSlabs: number;
+  castSlabs: number;
+  activeSlabs: number;
+  delayedSlabs: number;
+  pendingSlabs: number;
+  castPercent: number;
+  activePercent: number;
+  towers: {
+    towerId: string;
+    towerName: string;
+    projectId: string;
+    projectName: string;
+    city: string;
+    totalFloors: number;
+    completedFloors: number;
+    activeFloors: number;
+    delayedFloors: number;
+    currentStage: string;
+    status: string;
+  }[];
+}
+
+export function getPortfolioSlabMetrics(city?: string): PortfolioSlabMetrics {
+  let towers = TOWERS_DATA;
+  if (city && city !== 'All locations' && city !== 'All Locations') {
+    const projIds = PROJECTS.filter(p => {
+      if (city.toLowerCase() === 'mumbai') return p.city === 'Mumbai' || p.city === 'Navi Mumbai' || p.city === 'Thane';
+      return p.city.toLowerCase() === city.toLowerCase();
+    }).map(p => p.id);
+    towers = towers.filter(t => projIds.includes(t.projectId));
+  }
+
+  const totalSlabs = towers.reduce((acc, t) => acc + t.totalFloors, 0);
+  const castSlabs = towers.reduce((acc, t) => acc + t.completedFloors, 0);
+  const activeSlabs = towers.reduce((acc, t) => acc + t.activeFloors, 0);
+  const delayedSlabs = towers.reduce((acc, t) => acc + t.delayedFloors, 0);
+  const pendingSlabs = Math.max(0, totalSlabs - castSlabs - activeSlabs);
+
+  const castPercent = totalSlabs > 0 ? Math.round((castSlabs / totalSlabs) * 100) : 0;
+  const activePercent = totalSlabs > 0 ? Math.round((activeSlabs / totalSlabs) * 100) : 0;
+
+  const towerList = towers.map(t => {
+    const proj = PROJECTS.find(p => p.id === t.projectId);
+    return {
+      towerId: t.id,
+      towerName: t.name,
+      projectId: t.projectId,
+      projectName: proj?.name || '',
+      city: proj?.city || '',
+      totalFloors: t.totalFloors,
+      completedFloors: t.completedFloors,
+      activeFloors: t.activeFloors,
+      delayedFloors: t.delayedFloors,
+      currentStage: t.currentStage,
+      status: t.status,
+    };
+  });
+
+  return {
+    totalSlabs,
+    castSlabs,
+    activeSlabs,
+    delayedSlabs,
+    pendingSlabs,
+    castPercent,
+    activePercent,
+    towers: towerList,
+  };
+}
+

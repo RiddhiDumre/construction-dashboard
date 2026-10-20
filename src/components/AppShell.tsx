@@ -603,7 +603,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ============================================================
           MAIN CONTENT AREA (Full Width Desktop)
           ============================================================ */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto px-6 py-6">
+      <main
+        className={clsx(
+          "flex-1 w-full max-w-[1680px] mx-auto",
+          (state.activeTab === 'overview' || state.activeTab === 'portfolio')
+            ? "px-4 py-2 h-[calc(100vh-6.25rem)] overflow-hidden flex flex-col"
+            : "px-6 py-6"
+        )}
+      >
         {children}
       </main>
 
