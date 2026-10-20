@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const overdueWIRs = state.wirs.filter(w => w.slaBreach && (w.status === 'Submitted' || w.status === 'Awaiting Review')).length;
 
   return (
-    <div className="min-h-screen bg-[#F6F7F8] text-[#17191D] font-sans antialiased flex flex-col">
+    <div className="h-screen bg-[#F6F7F8] text-[#17191D] font-sans antialiased flex flex-col overflow-hidden">
       {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-[#17191D] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl animate-in slide-in-from-top-2 duration-150">
@@ -286,7 +286,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ============================================================
           MAIN VIEWPORT CONTAINER
           ============================================================ */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto px-6 py-5">
+      <main className="flex-1 overflow-auto w-full max-w-[1600px] mx-auto px-6 py-5">
         {children}
       </main>
 
