@@ -294,14 +294,9 @@ export function PortfolioPage() {
               <span>· {kpis.portfolioWIRPassRate}% 1st-pass WIR</span>
             </div>
           </div>
-          <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full mt-3 overflow-hidden">
-            <div
-              className={clsx(
-                'h-full rounded-full transition-all duration-500',
-                kpis.portfolioQualityScore >= 80 ? 'bg-[#16805D]' : kpis.portfolioQualityScore >= 60 ? 'bg-[#D97706]' : 'bg-[#DC2626]'
-              )}
-              style={{ width: `${kpis.portfolioQualityScore}%` }}
-            />
+          <div className="text-[11px] text-[#737B88] mt-3 pt-2 border-t border-[#F1F5F9] flex items-center justify-between font-medium">
+            <span>Audit Score: <strong>76%</strong></span>
+            <span>NC Health: <strong>71/100</strong></span>
           </div>
         </div>
 
@@ -602,48 +597,22 @@ export function PortfolioPage() {
               </div>
             </div>
 
-            {/* Project Distribution Bars */}
-            <div className="space-y-2 py-3 border-t border-[#F1F5F9]">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                  <span className="w-2 h-2 rounded-full bg-[#16805D]" />
-                  <span>Healthy Projects</span>
-                </span>
-                <span className="font-bold tabular-nums text-slate-900">{healthStats.healthy}</span>
+            {/* Project Distribution Stats (No tiny bars) */}
+            <div className="grid grid-cols-3 gap-2 py-3 border-t border-[#F1F5F9] text-center">
+              <div className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
+                <span className="text-[10px] font-bold uppercase text-[#16805D] block">Healthy</span>
+                <span className="text-xl font-black text-[#16805D] tabular-nums mt-0.5 block">{healthStats.healthy}</span>
+                <span className="text-[9px] text-[#737B88] font-medium">{Math.round((healthStats.healthy / Math.max(1, projectClusters.length)) * 100)}% portfolio</span>
               </div>
-              <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#16805D] rounded-full"
-                  style={{ width: `${(healthStats.healthy / Math.max(1, projectClusters.length)) * 100}%` }}
-                />
+              <div className="p-2 rounded-lg bg-amber-50/60 border border-amber-100">
+                <span className="text-[10px] font-bold uppercase text-[#B7791F] block">At Risk</span>
+                <span className="text-xl font-black text-[#B7791F] tabular-nums mt-0.5 block">{healthStats.atRisk}</span>
+                <span className="text-[9px] text-[#737B88] font-medium">{Math.round((healthStats.atRisk / Math.max(1, projectClusters.length)) * 100)}% portfolio</span>
               </div>
-
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                  <span className="w-2 h-2 rounded-full bg-[#D97706]" />
-                  <span>At Risk Projects</span>
-                </span>
-                <span className="font-bold tabular-nums text-[#B7791F]">{healthStats.atRisk}</span>
-              </div>
-              <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#D97706] rounded-full"
-                  style={{ width: `${(healthStats.atRisk / Math.max(1, projectClusters.length)) * 100}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                  <span className="w-2 h-2 rounded-full bg-[#DC2626]" />
-                  <span>Critical Projects</span>
-                </span>
-                <span className="font-bold tabular-nums text-[#C63F43]">{healthStats.critical}</span>
-              </div>
-              <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#DC2626] rounded-full"
-                  style={{ width: `${(healthStats.critical / Math.max(1, projectClusters.length)) * 100}%` }}
-                />
+              <div className="p-2 rounded-lg bg-rose-50/60 border border-rose-100">
+                <span className="text-[10px] font-bold uppercase text-[#C63F43] block">Critical</span>
+                <span className="text-xl font-black text-[#C63F43] tabular-nums mt-0.5 block">{healthStats.critical}</span>
+                <span className="text-[9px] text-[#737B88] font-medium">Stop-Work</span>
               </div>
             </div>
           </div>
@@ -726,17 +695,14 @@ export function PortfolioPage() {
                       </td>
                       <td className="py-3 px-3 text-[#737B88] font-medium">{p.city}</td>
                       <td className="py-3 px-3">
-                        <div className="flex items-center gap-2 tabular-nums">
+                        <div className="tabular-nums">
                           <span className="font-bold text-[#17191D]">{p.overallProgress}%</span>
-                          <div className="w-16 h-1 bg-[#F1F5F9] rounded-full overflow-hidden">
-                            <div
-                              className={clsx(
-                                'h-full rounded-full',
-                                isCrit ? 'bg-[#DC2626]' : isRisk ? 'bg-[#D97706]' : 'bg-[#00594F]'
-                              )}
-                              style={{ width: `${p.overallProgress}%` }}
-                            />
-                          </div>
+                          <span className={clsx(
+                            'text-[10px] block font-medium',
+                            isCrit ? 'text-[#C63F43]' : isRisk ? 'text-[#B7791F]' : 'text-[#737B88]'
+                          )}>
+                            {isCrit ? 'Floor 05 Hold' : isRisk ? 'Column Casting' : 'Slab Finishing'}
+                          </span>
                         </div>
                       </td>
                       <td className="py-3 px-3 text-right tabular-nums text-[#737B88] font-medium">

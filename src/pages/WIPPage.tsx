@@ -1,11 +1,11 @@
 // ============================================================
 // PAGE 2 — WORK IN PROGRESS (WIP) OPERATIONAL MODULE
-// Re-architected User Flow:
-// 1. Filtering first (City, Status, Search)
-// 2. Full-width WIP Skyline graph for all projects with 2-word localities
-// 3. Project Cards with real site photos, tower summaries & photo-logged issues
-// 4. Slide-over Inspector Drawer with tower graphs, dedicated floor selector,
-//    and mobile site photo upload evidence view.
+// Streamlined, Un-Nested Architecture:
+// 1. Top Filters & Search
+// 2. Billboard Project Showcase (Luxury 3D Renders, Locality Tags, No micro-bars)
+// 3. Direct Side-by-Side Project Construction Hub (Zero Nested Drawers):
+//    - Left: Full architectural skyline with stacked slabs
+//    - Right: Direct floor level picker, on-site mobile defect photo & statements
 // ============================================================
 
 import React, { useState, useMemo } from 'react';
@@ -13,7 +13,7 @@ import {
   Layers, Building2, CheckCircle2, AlertTriangle, Clock,
   ArrowRight, ChevronRight, Search, Filter, ShieldAlert,
   HardHat, Calendar, X, Camera, Upload, Check, ChevronDown,
-  ExternalLink, Eye, MapPin
+  ExternalLink, MapPin
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useApp } from '../store/appStore';
@@ -21,7 +21,6 @@ import {
   PROJECTS, CONTRACTORS, TOWERS_DATA, FLOORS_DATA,
   type TowerBuilding, type FloorProgress, type WIPActivity,
 } from '../data/seedData';
-import { getWIPSummaryMetrics } from '../data/calculations';
 
 // ── Locality Map (Two-word area + city) ──────────────────────
 const LOCALITY_MAP: Record<string, string> = {
@@ -34,41 +33,44 @@ const LOCALITY_MAP: Record<string, string> = {
   P007: 'Ghodbunder, Thane',
 };
 
-// ── Real Site Images Map ────────────────────────────────────
-const PROJECT_IMAGES: Record<string, string> = {
+// ── Luxury Billboard Architectural Renders ──────────────────
+const PROJECT_RENDERS: Record<string, string> = {
   P001: '/projects/p001-meridian.jpg',
   P002: '/projects/p002-northgate.jpg',
   P003: '/projects/p003-cedar-park.jpg',
   P004: '/projects/p004-riverstone.jpg',
   P005: '/projects/p005-harbour-point.jpg',
   P006: '/projects/p006-summit-greens.jpg',
-  P007: '/projects/p001-meridian.jpg',
+  P007: '/projects/p007-vivanta.jpg',
 };
 
-// ── Real Defect Photos Map ──────────────────────────────────
-const DEFECT_PHOTOS: Record<string, { image: string; statement: string; author: string; timestamp: string }> = {
+// ── Real Site Defect Observation Feed ────────────────────────
+const DEFECT_FEED: Record<string, { image: string; statement: string; author: string; timestamp: string; floorNum: number }> = {
   P004: {
     image: '/defects/nc-0001-cube-fail.jpg',
-    statement: 'M35 RMC batch failing 28-day cube compression test (18.2 MPa). Heavy honeycombing observed at Grid C12–C21 column core.',
+    statement: 'M35 RMC batch failed 28-day cube compression test (18.2 MPa). Heavy honeycombing observed at Grid C12–C21 column core. Structural stop-work active.',
     author: 'T. Pillai (Site QA Lead)',
     timestamp: '14 Oct 2025, 11:42 AM · Mobile Upload',
+    floorNum: 5,
   },
   P001: {
     image: '/defects/nc-0002-honeycombing.jpg',
-    statement: 'Surface honeycombing on shear wall junction post shuttering stripping. Shuttering vibrator under-utilization.',
+    statement: 'Surface honeycombing on shear wall junction post shuttering stripping. Shuttering vibrator under-compaction logged.',
     author: 'M. Joshi (Quality Inspector)',
     timestamp: '12 Oct 2025, 03:15 PM · Mobile Upload',
+    floorNum: 6,
   },
   P002: {
     image: '/defects/nc-0006-rebar-spacing.jpg',
-    statement: 'Column tie stirrup spacing 220mm against 150mm specified structural drawing. Re-tying required before casting.',
+    statement: 'Column tie stirrup spacing 220mm against 150mm specified structural drawing. Re-tying required before concrete casting signoff.',
     author: 'D. Sen (Site Engineer)',
     timestamp: '10 Oct 2025, 09:30 AM · Mobile Upload',
+    floorNum: 4,
   },
 };
 
 const CITIES = ['All Locations', 'Mumbai', 'Pune', 'Bengaluru', 'Hyderabad', 'Gurugram'];
-const STATUS_FILTERS = ['All Statuses', 'Critical Holds', 'Schedule Delayed', 'On Track'];
+const STATUS_FILTERS = ['All Statuses', 'Critical Holds', 'Schedule Delayed', 'On Pace'];
 
 export function WIPPage() {
   const { state, setTab, selectWIR, selectNC, selectActivity } = useApp();
@@ -78,10 +80,16 @@ export function WIPPage() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All Statuses');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Active Inspector Drawer State
-  const [drawerProjectId, setDrawerProjectId] = useState<string | null>(null);
-  const [drawerTowerName, setDrawerTowerName] = useState<string>('Tower 1');
-  const [drawerFloorNumber, setDrawerFloorNumber] = useState<number>(5);
+  // Active Project Selection (Direct, un-nested!)
+  const [activeProjectId, setActiveProjectId] = useState<string>(
+    state.selectedProjectId || 'P004' // Default Riverstone Towers
+  );
+
+  // Active Tower Selection within Project
+  const [activeTowerName, setActiveTowerName] = useState<string>('Tower 1');
+
+  // Active Floor Selection within Tower
+  const [activeFloorNumber, setActiveFloorNumber] = useState<number>(5);
 
   // Upload simulation modal
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -91,7 +99,6 @@ export function WIPPage() {
   const [hoveredSlab, setHoveredSlab] = useState<{
     x: number;
     y: number;
-    projectName: string;
     towerName: string;
     floorNumber: number;
     stage: string;
@@ -100,7 +107,7 @@ export function WIPPage() {
     issueTitle?: string;
   } | null>(null);
 
-  // Filtered Projects
+  // Filtered Projects for Billboard Showcase
   const filteredProjects = useMemo(() => {
     return PROJECTS.filter(p => {
       // City
@@ -112,12 +119,12 @@ export function WIPPage() {
         }
       }
 
-      // Status Filter
+      // Status
       if (selectedStatusFilter === 'Critical Holds' && p.id !== 'P004') return false;
       if (selectedStatusFilter === 'Schedule Delayed' && p.delayedBuildings === 0) return false;
-      if (selectedStatusFilter === 'On Track' && (p.id === 'P004' || p.delayedBuildings > 0)) return false;
+      if (selectedStatusFilter === 'On Pace' && (p.id === 'P004' || p.delayedBuildings > 0)) return false;
 
-      // Search Query
+      // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const loc = (LOCALITY_MAP[p.id] || '').toLowerCase();
@@ -130,54 +137,56 @@ export function WIPPage() {
     });
   }, [selectedCity, selectedStatusFilter, searchQuery]);
 
-  // Drawer Selected Project & Towers
-  const drawerProject = useMemo(() => {
-    if (!drawerProjectId) return null;
-    return PROJECTS.find(p => p.id === drawerProjectId) || null;
-  }, [drawerProjectId]);
+  // Current Active Project
+  const activeProject = useMemo(() => {
+    return PROJECTS.find(p => p.id === activeProjectId) || PROJECTS[0];
+  }, [activeProjectId]);
 
-  const drawerTowers = useMemo(() => {
-    if (!drawerProjectId) return [];
-    return TOWERS_DATA.filter(t => t.projectId === drawerProjectId);
-  }, [drawerProjectId]);
+  // Towers for Active Project
+  const activeTowers = useMemo(() => {
+    return TOWERS_DATA.filter(t => t.projectId === activeProject.id);
+  }, [activeProject]);
 
-  // Active Tower inside drawer
-  const activeDrawerTower = useMemo(() => {
-    if (drawerTowers.length === 0) return null;
-    return drawerTowers.find(t => t.name === drawerTowerName) || drawerTowers[0];
-  }, [drawerTowers, drawerTowerName]);
+  // Active Tower Object
+  const currentTower = useMemo(() => {
+    return activeTowers.find(t => t.name === activeTowerName) || activeTowers[0] || TOWERS_DATA[0];
+  }, [activeTowers, activeTowerName]);
 
-  // Floors for active drawer tower
-  const activeTowerFloors = useMemo(() => {
-    if (!drawerProjectId || !activeDrawerTower) return [];
-    return FLOORS_DATA.filter(f => f.projectId === drawerProjectId && f.tower === activeDrawerTower.name);
-  }, [drawerProjectId, activeDrawerTower]);
+  // Sync tower if project changes
+  React.useEffect(() => {
+    if (activeTowers.length > 0 && !activeTowers.some(t => t.name === activeTowerName)) {
+      setActiveTowerName(activeTowers[0].name);
+      setActiveFloorNumber(activeProject.id === 'P004' ? 5 : 4);
+    }
+  }, [activeProject, activeTowers, activeTowerName]);
+
+  // Floors for Active Tower
+  const towerFloors = useMemo(() => {
+    return FLOORS_DATA.filter(f => f.projectId === activeProject.id && f.tower === currentTower.name);
+  }, [activeProject, currentTower]);
 
   // Active Floor Record
-  const activeFloorRecord = useMemo(() => {
-    if (activeTowerFloors.length === 0) return null;
-    return activeTowerFloors.find(f => f.floorNumber === drawerFloorNumber) || activeTowerFloors[0];
-  }, [activeTowerFloors, drawerFloorNumber]);
+  const currentFloorRecord = useMemo(() => {
+    return towerFloors.find(f => f.floorNumber === activeFloorNumber) || towerFloors[0] || null;
+  }, [towerFloors, activeFloorNumber]);
 
-  // Active Project Activities
-  const drawerActivities = useMemo(() => {
-    if (!drawerProjectId) return [];
-    return state.wipActivities.filter(a => a.projectId === drawerProjectId);
-  }, [drawerProjectId, state.wipActivities]);
+  // Work Packages on Active Floor
+  const floorActivities = useMemo(() => {
+    const floorStr = `Floor ${String(activeFloorNumber).padStart(2, '0')}`;
+    return state.wipActivities.filter(a =>
+      a.projectId === activeProject.id &&
+      a.tower === currentTower.name &&
+      a.floor === floorStr
+    );
+  }, [state.wipActivities, activeProject.id, currentTower.name, activeFloorNumber]);
 
-  // Open Drawer handler
-  const handleOpenDrawer = (projectId: string, towerName?: string, floorNum?: number) => {
-    setDrawerProjectId(projectId);
-    const towers = TOWERS_DATA.filter(t => t.projectId === projectId);
-    const chosenTower = towerName || towers[0]?.name || 'Tower 1';
-    setDrawerTowerName(chosenTower);
-    setDrawerFloorNumber(floorNum || (projectId === 'P004' ? 5 : 4));
-  };
+  const activeDefect = DEFECT_FEED[activeProject.id];
+  const hasDefectOnActiveFloor = activeDefect && activeDefect.floorNum === activeFloorNumber;
 
   return (
     <div className="space-y-4 pb-12">
       {/* ============================================================
-          TOP FILTER & SEARCH BAR (FILTERING IS TOP PRIORITY)
+          TOP LEVEL: FILTERS & SEARCH (PRIMARY CONTROLS)
           ============================================================ */}
       <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -195,7 +204,6 @@ export function WIPPage() {
             </p>
           </div>
 
-          {/* Search box */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
             <input
@@ -208,9 +216,8 @@ export function WIPPage() {
           </div>
         </div>
 
-        {/* Location & Status Filters */}
+        {/* Filter Controls Row */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#F1F5F9]">
-          {/* Location Buttons */}
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
             {CITIES.map(city => (
               <button
@@ -228,7 +235,6 @@ export function WIPPage() {
             ))}
           </div>
 
-          {/* Status Quick Filter */}
           <div className="flex items-center gap-1">
             {STATUS_FILTERS.map(st => (
               <button
@@ -249,332 +255,94 @@ export function WIPPage() {
       </div>
 
       {/* ============================================================
-          SECTION 1: ENTIRE WIP GRAPH SPREAD THROUGHOUT FULL WIDTH
-          Grouped by project with 2-word locality tags
+          SHOWCASE CAROUSEL: BILLBOARD 3D ARCHITECTURAL RENDERS
+          Direct project cards: Clicking any card focuses it immediately!
+          NO micro progress bars! Uses big bold numbers & slab counts.
           ============================================================ */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xs overflow-hidden">
-        <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Layers size={16} className="text-[#00594F]" />
-            <h2 className="text-sm font-bold text-[#17191D]">
-              Portfolio WIP Skyline — All Active Projects & Towers
-            </h2>
-            <span className="text-xs text-[#737B88] hidden sm:inline">
-              · Spread full-width · Click any project to open side inspector
-            </span>
-          </div>
-
-          <span className="text-xs text-[#737B88] font-medium">
-            Showing <strong className="text-[#17191D]">{filteredProjects.length}</strong> Projects
-          </span>
-        </div>
-
-        {/* Full-width Skyline Canvas */}
-        <div className="p-5 bg-[#FAFBFB] flex items-end justify-start gap-8 overflow-x-auto min-h-[300px]">
-          {filteredProjects.map(project => {
-            const towers = TOWERS_DATA.filter(t => t.projectId === project.id);
-            const locality = LOCALITY_MAP[project.id] || `${project.city}`;
-            const isCrit = project.id === 'P004';
-            const isDelayed = project.delayedBuildings > 0;
-
-            return (
-              <div
-                key={project.id}
-                onClick={() => handleOpenDrawer(project.id)}
-                className={clsx(
-                  'flex flex-col items-center p-3 rounded-xl border transition-all cursor-pointer group hover:shadow-md hover:-translate-y-0.5',
-                  isCrit
-                    ? 'border-red-200 bg-red-50/20'
-                    : isDelayed
-                    ? 'border-amber-200 bg-amber-50/20'
-                    : 'border-slate-200 bg-white/70'
-                )}
-                style={{ minWidth: towers.length * 56 + 28 }}
-              >
-                {/* Towers Stack Row */}
-                <div className="flex items-end justify-center gap-2.5 w-full">
-                  {towers.map(tower => {
-                    const total = tower.totalFloors;
-                    const completed = tower.completedFloors;
-                    const active = completed + 1;
-                    const isTroubled = tower.projectId === 'P004' && tower.name === 'Tower 1';
-                    const criticalFloor = isTroubled ? 5 : undefined;
-
-                    const slabH = 6;
-                    const gap = 1;
-
-                    return (
-                      <div
-                        key={tower.id}
-                        className="flex flex-col items-center group/tower"
-                        style={{ width: 40 }}
-                      >
-                        {/* Progress % */}
-                        <span className={clsx(
-                          'text-[10px] font-bold tabular-nums mb-1',
-                          tower.status === 'Delayed' ? 'text-[#C63F43]' : 'text-[#00594F]'
-                        )}>
-                          {tower.actualProgress}%
-                        </span>
-
-                        {/* Slabs Body */}
-                        <div
-                          className="w-full flex flex-col-reverse relative group-hover/tower:scale-105 transition-transform"
-                          style={{ gap: `${gap}px` }}
-                        >
-                          {/* Roof Cap */}
-                          <div
-                            className="w-full h-1.5 rounded-t-sm"
-                            style={{
-                              backgroundColor: tower.status === 'Delayed' ? '#DC2626' : '#17191D',
-                            }}
-                          />
-
-                          {/* Floor Slabs */}
-                          {Array.from({ length: total }).map((_, fIdx) => {
-                            const floorNum = fIdx + 1;
-                            const isCompleted = floorNum <= completed;
-                            const isActive = floorNum === active;
-                            const isCriticalFloor = criticalFloor === floorNum;
-                            const isDelayedFloor = tower.status === 'Delayed' && floorNum > completed && floorNum <= completed + 2;
-
-                            let bg = '#E2E8F0';
-                            if (isCriticalFloor) bg = '#DC2626';
-                            else if (isCompleted) bg = '#00594F';
-                            else if (isActive) bg = '#0D9488';
-                            else if (isDelayedFloor) bg = '#D97706';
-
-                            return (
-                              <div
-                                key={floorNum}
-                                onMouseEnter={(e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setHoveredSlab({
-                                    x: rect.right + 12,
-                                    y: rect.top - 20,
-                                    projectName: project.name,
-                                    towerName: tower.name,
-                                    floorNumber: floorNum,
-                                    stage: isCompleted ? 'Completed Slab' : isActive ? tower.currentStage : 'Upcoming Slab',
-                                    status: isCriticalFloor ? 'Critical Hold' : isCompleted ? 'Passed' : isActive ? 'Casting' : 'Scheduled',
-                                    isCritical: isCriticalFloor,
-                                    issueTitle: isCriticalFloor ? 'Concrete cube-test failure & honeycombing' : undefined,
-                                  });
-                                }}
-                                onMouseLeave={() => setHoveredSlab(null)}
-                                className="w-full rounded-[1px] relative"
-                                style={{
-                                  height: `${slabH}px`,
-                                  backgroundColor: bg,
-                                }}
-                              >
-                                {isCriticalFloor && (
-                                  <span className="absolute -right-1 -top-0.5 w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {/* Base */}
-                          <div className="w-full h-1 bg-slate-400 rounded-b-sm" />
-                        </div>
-
-                        {/* Tower Name */}
-                        <span className="text-[9px] font-semibold text-[#17191D] mt-1.5 truncate max-w-full">
-                          {tower.name}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Project Locality Footer */}
-                <div className="mt-2.5 pt-2 border-t border-slate-200/60 w-full text-center">
-                  <span className="text-xs font-bold text-[#17191D] block truncate group-hover:text-[#00594F] transition-colors">
-                    {project.name}
-                  </span>
-                  <div className="flex items-center justify-center gap-1 text-[10px] text-[#737B88] font-semibold mt-0.5">
-                    <MapPin size={10} className="text-[#00594F]" />
-                    <span>{locality}</span>
-                  </div>
-                  <div className="text-[10px] text-[#737B88] mt-0.5 font-medium tabular-nums">
-                    {project.progressPercentage}% progress · {towers.length} towers
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ============================================================
-          SECTION 2: PROJECT CARDS GRID WITH REAL SITE IMAGES & DEFECTS
-          Below the full-width graph: Each project card has tower summary,
-          locality tag, real photo, and photo-logged site defect highlight.
-          ============================================================ */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-[#17191D]">
-              Project Construction Cards & On-Site Observation Feeds
-            </h2>
-            <p className="text-xs text-[#737B88]">
-              Click any project card to inspect building elevations, select floor levels, and view uploaded defect photography.
-            </p>
-          </div>
-
-          <span className="text-xs text-[#737B88]">
-            {filteredProjects.length} Active Sites
+          <span className="text-xs font-bold uppercase tracking-wider text-[#737B88]">
+            Select Project Portfolio ({filteredProjects.length} Developments)
+          </span>
+          <span className="text-[11px] text-[#737B88]">
+            Click any project to inspect towers and floor casting directly below
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProjects.map(project => {
-            const towers = TOWERS_DATA.filter(t => t.projectId === project.id);
-            const locality = LOCALITY_MAP[project.id] || project.city;
-            const projectImg = PROJECT_IMAGES[project.id] || '/projects/p001-meridian.jpg';
-            const defect = DEFECT_PHOTOS[project.id];
-            const isCrit = project.id === 'P004';
-            const isDelayed = project.delayedBuildings > 0;
-
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {filteredProjects.map(proj => {
+            const active = proj.id === activeProject.id;
+            const towers = TOWERS_DATA.filter(t => t.projectId === proj.id);
+            const locality = LOCALITY_MAP[proj.id] || proj.city;
+            const isCrit = proj.id === 'P004';
+            const isDelayed = proj.delayedBuildings > 0;
             const totalFloors = towers.reduce((acc, t) => acc + t.totalFloors, 0);
             const completedFloors = towers.reduce((acc, t) => acc + t.completedFloors, 0);
 
             return (
               <div
-                key={project.id}
-                onClick={() => handleOpenDrawer(project.id)}
-                className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden cursor-pointer group"
+                key={proj.id}
+                onClick={() => setActiveProjectId(proj.id)}
+                className={clsx(
+                  'rounded-xl border transition-all cursor-pointer overflow-hidden flex flex-col justify-between group',
+                  active
+                    ? 'border-[#00594F] bg-white ring-2 ring-[#00594F] shadow-md scale-[1.02]'
+                    : 'border-[#E5E7EB] bg-white hover:border-slate-300 hover:shadow-xs'
+                )}
               >
-                <div>
-                  {/* Real Project Site Image Header */}
-                  <div className="relative h-40 w-full overflow-hidden bg-slate-100">
-                    <img
-                      src={projectImg}
-                      alt={project.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                {/* Billboard Architectural Render Image */}
+                <div className="relative h-28 w-full overflow-hidden bg-slate-100">
+                  <img
+                    src={PROJECT_RENDERS[proj.id] || '/projects/p001-meridian.jpg'}
+                    alt={proj.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
-                    {/* Badge on Image */}
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-black/60 text-white backdrop-blur-xs flex items-center gap-1">
-                        <MapPin size={11} className="text-emerald-400" />
-                        {locality}
-                      </span>
-                    </div>
-
-                    <div className="absolute top-3 right-3">
-                      <span className={clsx(
-                        'px-2 py-0.5 rounded-md text-[11px] font-bold shadow-xs',
-                        isCrit ? 'bg-red-600 text-white' : isDelayed ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
-                      )}>
-                        {isCrit ? 'Critical Hold' : isDelayed ? 'Delayed Path' : 'On Track'}
-                      </span>
-                    </div>
-
-                    {/* Project Name on Image bottom */}
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <h3 className="text-base font-bold text-white tracking-tight">
-                        {project.name}
-                      </h3>
-                      <p className="text-[11px] text-slate-200">
-                        Manager: {project.projectManager} · QA: {project.qualityLead}
-                      </p>
-                    </div>
+                  {/* Top Locality Badge */}
+                  <div className="absolute top-2 left-2">
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-black/60 text-white backdrop-blur-xs flex items-center gap-1">
+                      <MapPin size={9} className="text-emerald-400" />
+                      {locality}
+                    </span>
                   </div>
 
-                  {/* Body Content */}
-                  <div className="p-4 space-y-3">
-                    {/* Progress Bar & Variance */}
-                    <div>
-                      <div className="flex justify-between text-xs font-semibold text-[#17191D] mb-1">
-                        <span>Physical Superstructure</span>
-                        <span className="tabular-nums">
-                          {project.progressPercentage}% <span className="text-[#737B88] font-normal">vs {project.targetProgressPercentage}% planned</span>
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                        <div
-                          className={clsx(
-                            'h-full rounded-full',
-                            isCrit ? 'bg-[#DC2626]' : isDelayed ? 'bg-[#D97706]' : 'bg-[#00594F]'
-                          )}
-                          style={{ width: `${project.progressPercentage}%` }}
-                        />
-                      </div>
-                    </div>
+                  {/* Status Dot */}
+                  <div className="absolute top-2 right-2">
+                    <span className={clsx(
+                      'w-2 h-2 rounded-full block ring-2 ring-white',
+                      isCrit ? 'bg-[#DC2626]' : isDelayed ? 'bg-[#D97706]' : 'bg-[#16805D]'
+                    )} />
+                  </div>
 
-                    {/* Tower & Slabs Summary Strip */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9]">
-                        <span className="text-[10px] text-[#737B88] font-medium block">Towers Active</span>
-                        <span className="text-sm font-bold text-[#17191D] block mt-0.5">
-                          {towers.length} Buildings
-                        </span>
-                        <span className="text-[10px] text-[#737B88]">
-                          {towers.map(t => t.name).join(', ')}
-                        </span>
-                      </div>
-
-                      <div className="p-2 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9]">
-                        <span className="text-[10px] text-[#737B88] font-medium block">Slabs Completed</span>
-                        <span className="text-sm font-bold text-[#00594F] block mt-0.5">
-                          {completedFloors} / {totalFloors}
-                        </span>
-                        <span className="text-[10px] text-[#737B88]">
-                          {Math.round((completedFloors / Math.max(1, totalFloors)) * 100)}% superstructure cast
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Real Site Defect / Quality Status with Photo Preview */}
-                    {defect ? (
-                      <div className="p-3 rounded-lg border border-red-200 bg-red-50/30 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-bold text-[#C63F43]">
-                          <span className="flex items-center gap-1.5">
-                            <ShieldAlert size={14} className="text-[#DC2626]" />
-                            <span>Active Site Observation (Photo Uploaded)</span>
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-red-100 text-red-800">
-                            Stop-Work
-                          </span>
-                        </div>
-
-                        {/* Defect Photo & Statement */}
-                        <div className="flex items-start gap-2.5">
-                          <img
-                            src={defect.image}
-                            alt="Site Defect"
-                            className="w-14 h-14 rounded-md object-cover border border-red-200 flex-shrink-0"
-                          />
-                          <div className="text-[11px] text-slate-700 leading-snug">
-                            <p className="font-semibold text-[#17191D] line-clamp-2">
-                              "{defect.statement}"
-                            </p>
-                            <p className="text-[10px] text-[#737B88] mt-1 font-medium">
-                              {defect.author}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/20 flex items-center gap-2 text-xs text-emerald-800 font-semibold">
-                        <CheckCircle2 size={16} className="text-[#16805D] flex-shrink-0" />
-                        <span>All 1st-pass concrete WIRs signed off. No active stop-works.</span>
-                      </div>
-                    )}
+                  {/* Project Name */}
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <h3 className="text-xs font-bold text-white tracking-tight truncate">
+                      {proj.name}
+                    </h3>
                   </div>
                 </div>
 
-                {/* Card Action Footer */}
-                <div className="px-4 py-2.5 bg-slate-50/80 border-t border-[#F1F5F9] flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-[#737B88] font-medium">
-                    {project.totalUnits} Residential Units
-                  </span>
-                  <span className="text-[#00594F] font-bold group-hover:underline flex items-center gap-1">
-                    Inspect Towers & Slabs <ChevronRight size={13} />
-                  </span>
+                {/* Key Numbers (NO micro progress bars!) */}
+                <div className="p-2.5 bg-white space-y-1 text-center">
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-base font-black text-[#17191D] tabular-nums">
+                      {proj.progressPercentage}%
+                    </span>
+                    <span className="text-[10px] text-[#737B88] font-medium">superstructure</span>
+                  </div>
+
+                  <div className="text-[10px] text-[#737B88] tabular-nums font-semibold">
+                    <strong className="text-[#00594F]">{completedFloors}</strong> / {totalFloors} slabs cast
+                  </div>
+
+                  <div className="pt-1 border-t border-[#F1F5F9] text-[9px] font-bold">
+                    <span className={clsx(
+                      isCrit ? 'text-[#C63F43]' : isDelayed ? 'text-[#B7791F]' : 'text-[#16805D]'
+                    )}>
+                      {isCrit ? '⚠ Critical Hold' : isDelayed ? 'Schedule Delay' : 'On Pace'}
+                    </span>
+                  </div>
                 </div>
               </div>
             );
@@ -583,299 +351,402 @@ export function WIPPage() {
       </div>
 
       {/* ============================================================
-          SECTION 3: SLIDE-OVER PROJECT INSPECTOR DRAWER
-          "a side thing pops up with the project towels listed in graph
-           at the top, below that summary of everything, and if I want
-           to see one specific building, then after clicking on that building
-           I see details with floor selection & site photo upload."
+          MAIN WORKSPACE: DIRECT SIDE-BY-SIDE ARCHITECTURAL HUB
+          Zero nested drawers!
+          Left (58%): Project Tower Elevations (Slab-by-Slab)
+          Right (42%): Direct Floor Level Picker & Site Photo Evidence
           ============================================================ */}
-      {drawerProject && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
-            {/* Drawer Header */}
-            <div className="p-5 border-b border-[#E5E7EB] bg-slate-50/60 flex items-start justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        {/* ── LEFT: PROJECT ARCHITECTURAL SKYLINE (7 cols / 58%) ── */}
+        <div className="lg:col-span-7 bg-white border border-[#E5E7EB] rounded-xl shadow-2xs p-5 flex flex-col justify-between">
+          <div>
+            {/* Header with Project Info & Locality */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#F1F5F9] gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#00594F] text-white">
-                    {LOCALITY_MAP[drawerProject.id] || drawerProject.city}
+                  <span className="px-2 py-0.5 rounded text-xs font-bold bg-[#17191D] text-white">
+                    {LOCALITY_MAP[activeProject.id] || activeProject.city}
                   </span>
-                  <h2 className="text-lg font-bold text-[#17191D]">
-                    {drawerProject.name}
+                  <h2 className="text-base font-bold text-[#17191D]">
+                    {activeProject.name} — Building Elevations
                   </h2>
                 </div>
-                <p className="text-xs text-[#737B88] mt-1">
-                  Manager: <strong className="text-[#17191D]">{drawerProject.projectManager}</strong> · QA: <strong className="text-[#17191D]">{drawerProject.qualityLead}</strong> · {drawerProject.totalUnits} Units
+                <p className="text-xs text-[#737B88] mt-0.5">
+                  Click any tower or floor slab directly to inspect casting progress.
                 </p>
               </div>
 
-              <button
-                onClick={() => setDrawerProjectId(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-[#17191D] hover:bg-slate-200/60 transition-colors"
-              >
-                <X size={18} />
-              </button>
+              {/* Tower Tabs */}
+              <div className="flex items-center gap-1">
+                {activeTowers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTowerName(t.name)}
+                    className={clsx(
+                      'px-2.5 py-1 rounded-md text-xs font-semibold transition-all',
+                      activeTowerName === t.name
+                        ? 'bg-[#00594F] text-white shadow-xs'
+                        : 'bg-[#F1F5F9] text-[#737B88] hover:text-[#17191D]'
+                    )}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Drawer Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              {/* Top: Project Towers Skyline Graph */}
-              <div className="bg-[#FAFBFB] border border-[#E5E7EB] rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-[#17191D]">
-                    Tower Superstructures Elevation
-                  </span>
-                  <span className="text-[11px] text-[#737B88]">
-                    Click any tower below to inspect
-                  </span>
-                </div>
+            {/* Architectural Towers Canvas */}
+            <div className="p-6 bg-[#FAFBFB] rounded-xl border border-[#F1F5F9] flex items-end justify-center gap-8 overflow-x-auto min-h-[340px] my-4">
+              {activeTowers.map(tower => {
+                const isCurrent = tower.name === activeTowerName;
+                const total = tower.totalFloors;
+                const completed = tower.completedFloors;
+                const active = completed + 1;
+                const isTroubled = tower.projectId === 'P004' && tower.name === 'Tower 1';
+                const criticalFloor = isTroubled ? 5 : undefined;
 
-                <div className="flex items-end justify-center gap-6 py-2">
-                  {drawerTowers.map(tower => {
-                    const isSelected = tower.name === activeDrawerTower?.name;
-                    const total = tower.totalFloors;
-                    const completed = tower.completedFloors;
-                    const active = completed + 1;
-                    const isTroubled = tower.projectId === 'P004' && tower.name === 'Tower 1';
-                    const criticalFloor = isTroubled ? 5 : undefined;
+                const slabH = 8;
+                const gap = 1.5;
 
-                    return (
-                      <div
-                        key={tower.id}
-                        onClick={() => setDrawerTowerName(tower.name)}
-                        className={clsx(
-                          'flex flex-col items-center p-3 rounded-xl border transition-all cursor-pointer',
-                          isSelected
-                            ? 'border-[#00594F] bg-white shadow-md ring-2 ring-[#00594F]/20'
-                            : 'border-slate-200 bg-white/60 hover:border-slate-300'
-                        )}
-                        style={{ width: 110 }}
-                      >
-                        <span className={clsx(
-                          'text-xs font-bold tabular-nums mb-1',
-                          tower.status === 'Delayed' ? 'text-[#C63F43]' : 'text-[#00594F]'
-                        )}>
-                          {tower.actualProgress}%
-                        </span>
+                return (
+                  <div
+                    key={tower.id}
+                    onClick={() => setActiveTowerName(tower.name)}
+                    className={clsx(
+                      'flex flex-col items-center p-3.5 rounded-xl border transition-all cursor-pointer group',
+                      isCurrent
+                        ? 'border-[#00594F] bg-white shadow-md ring-2 ring-[#00594F]/20 scale-105'
+                        : 'border-slate-200 bg-white/70 hover:border-slate-300'
+                    )}
+                    style={{ width: 130 }}
+                  >
+                    {/* Tower Header */}
+                    <div className="w-full flex items-center justify-between text-xs mb-2">
+                      <span className="font-bold text-[#17191D]">{tower.name}</span>
+                      <span className={clsx(
+                        'font-bold tabular-nums text-[11px]',
+                        tower.status === 'Delayed' ? 'text-[#C63F43]' : 'text-[#00594F]'
+                      )}>
+                        {tower.actualProgress}%
+                      </span>
+                    </div>
 
-                        {/* Stacking Slabs */}
-                        <div className="w-16 flex flex-col-reverse gap-0.5">
-                          <div
-                            className="w-full h-1.5 rounded-t-sm"
-                            style={{ backgroundColor: tower.status === 'Delayed' ? '#DC2626' : '#17191D' }}
-                          />
-                          {Array.from({ length: total }).map((_, idx) => {
-                            const fNum = idx + 1;
-                            const isCrit = criticalFloor === fNum;
-                            const isDone = fNum <= completed;
-                            const isCur = fNum === active;
-                            const isFloorSelected = isSelected && fNum === drawerFloorNumber;
-
-                            let bg = '#E2E8F0';
-                            if (isCrit) bg = '#DC2626';
-                            else if (isDone) bg = '#00594F';
-                            else if (isCur) bg = '#0D9488';
-
-                            return (
-                              <div
-                                key={fNum}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDrawerTowerName(tower.name);
-                                  setDrawerFloorNumber(fNum);
-                                }}
-                                className={clsx(
-                                  'w-full h-1.5 rounded-[1px] transition-all',
-                                  isFloorSelected ? 'ring-2 ring-black scale-110 z-10' : ''
-                                )}
-                                style={{ backgroundColor: bg }}
-                              />
-                            );
-                          })}
-                          <div className="w-full h-1 bg-slate-400 rounded-b-sm" />
-                        </div>
-
-                        <span className="text-xs font-bold text-[#17191D] mt-2">
-                          {tower.name}
-                        </span>
-                        <span className="text-[10px] text-[#737B88] tabular-nums">
-                          {completed}/{total} floors
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* INTUITIVE FLOOR SELECTOR (NOT JUST CLICKING TINY GRAPH) */}
-              <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 size={15} className="text-[#00594F]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#17191D]">
-                      Select Floor Level ({activeDrawerTower?.name})
-                    </h3>
-                  </div>
-                  <span className="text-[11px] text-[#737B88]">
-                    {activeDrawerTower?.totalFloors} Total Levels
-                  </span>
-                </div>
-
-                {/* Floor Buttons Grid */}
-                <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
-                  {Array.from({ length: activeDrawerTower?.totalFloors || 12 }).map((_, idx) => {
-                    const fNum = idx + 1;
-                    const isCompleted = fNum <= (activeDrawerTower?.completedFloors || 0);
-                    const isCritical = activeDrawerTower?.projectId === 'P004' && activeDrawerTower?.name === 'Tower 1' && fNum === 5;
-                    const isSelected = drawerFloorNumber === fNum;
-
-                    return (
-                      <button
-                        key={fNum}
-                        onClick={() => setDrawerFloorNumber(fNum)}
-                        className={clsx(
-                          'h-9 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center relative',
-                          isSelected
-                            ? 'bg-[#17191D] text-white shadow-xs scale-105'
-                            : isCritical
-                            ? 'bg-rose-100 text-[#C63F43] border border-rose-300'
-                            : isCompleted
-                            ? 'bg-teal-50 text-[#00594F] border border-teal-200'
-                            : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-                        )}
-                      >
-                        <span>F{String(fNum).padStart(2, '0')}</span>
-                        {isCritical && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-600 absolute top-1 right-1" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* SELECTED FLOOR INSPECTION CARD & REAL SITE PHOTO UPLOAD */}
-              <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#737B88] block">
-                      Active Floor Detail
-                    </span>
-                    <h3 className="text-base font-bold text-[#17191D]">
-                      {activeDrawerTower?.name} · Floor {String(drawerFloorNumber).padStart(2, '0')}
-                    </h3>
-                  </div>
-
-                  <span className={clsx(
-                    'text-xs font-bold px-2 py-0.5 rounded-full',
-                    drawerProject.id === 'P004' && drawerFloorNumber === 5
-                      ? 'bg-rose-100 text-[#C63F43] border border-rose-300'
-                      : 'bg-emerald-100 text-[#16805D]'
-                  )}>
-                    {drawerProject.id === 'P004' && drawerFloorNumber === 5 ? 'Critical Stop-Work' : 'Poured & Approved'}
-                  </span>
-                </div>
-
-                {/* Physical vs Inspected */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9]">
-                    <span className="text-[10px] text-[#737B88] font-medium block">Physical Poured</span>
-                    <span className="text-lg font-bold text-[#17191D] tabular-nums mt-0.5 block">
-                      {drawerFloorNumber <= (activeDrawerTower?.completedFloors || 0) ? '100%' : drawerFloorNumber === 5 ? '80%' : '0%'}
-                    </span>
-                    <span className="text-[10px] text-[#737B88]">Superstructure concrete</span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9]">
-                    <span className="text-[10px] text-[#737B88] font-medium block">Quality Inspected</span>
-                    <span className="text-lg font-bold text-[#16805D] tabular-nums mt-0.5 block">
-                      {drawerFloorNumber <= (activeDrawerTower?.completedFloors || 0) ? '100%' : '0%'}
-                    </span>
-                    <span className="text-[10px] text-[#737B88]">Accepted WIR sign-off</span>
-                  </div>
-                </div>
-
-                {/* ON-SITE CAMERA PHOTO UPLOAD & STATEMENT (USER'S EXACT VISION) */}
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#17191D] flex items-center gap-1.5">
-                      <Camera size={14} className="text-[#00594F]" />
-                      <span>On-Site Photo Evidence & Statement</span>
-                    </span>
-
-                    <button
-                      onClick={() => setUploadModalOpen(true)}
-                      className="px-2 py-1 rounded bg-[#17191D] text-white text-[10px] font-bold hover:bg-black transition-colors flex items-center gap-1 shadow-xs"
+                    {/* Stacking Slabs */}
+                    <div
+                      className="w-full flex flex-col-reverse relative group-hover:scale-[1.01] transition-transform"
+                      style={{ gap: `${gap}px` }}
                     >
-                      <Upload size={11} />
-                      <span>Upload New Site Photo</span>
-                    </button>
-                  </div>
-
-                  {/* Photo Display */}
-                  {drawerProject.id === 'P004' && drawerFloorNumber === 5 ? (
-                    <div className="space-y-2">
-                      <div className="relative rounded-lg overflow-hidden border border-red-200">
-                        <img
-                          src="/defects/nc-0001-cube-fail.jpg"
-                          alt="Cube test failure"
-                          className="w-full h-44 object-cover"
-                        />
-                        <div className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs text-white text-[10px] px-2 py-1 rounded font-mono">
-                          GPS: 28.4595° N, 77.0266° E · Floor 05 Core
-                        </div>
-                      </div>
-
-                      <div className="text-xs bg-white p-3 rounded-lg border border-red-200">
-                        <p className="font-bold text-[#C63F43] mb-1">
-                          Statement: "M35 RMC cube failed 28d strength test at 18.2 MPa. Column honeycombing logged at Grid C14. Stop-work notice issued."
-                        </p>
-                        <p className="text-[10px] text-[#737B88]">
-                          Captured by: <strong className="text-[#17191D]">T. Pillai (Site Lead)</strong> · Assigned to: <strong className="text-[#17191D]">ABC Civil Works</strong> · 14 Oct 2025
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-[#737B88] text-center">
-                      <CheckCircle2 size={18} className="text-[#16805D] mx-auto mb-1" />
-                      <p className="font-semibold text-[#17191D]">No Defect Photos on this Level</p>
-                      <p className="text-[11px]">Work verified compliant by quality inspection team.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Work Packages Table for this Project */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-[#17191D] block">
-                    Associated Work Packages ({drawerActivities.length})
-                  </span>
-                  <div className="space-y-1.5 max-h-44 overflow-y-auto text-xs">
-                    {drawerActivities.slice(0, 4).map(act => (
+                      {/* Penthouse Cap */}
                       <div
-                        key={act.id}
-                        onClick={() => selectActivity(act.id)}
-                        className="p-2.5 rounded-lg border border-[#E5E7EB] hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer"
+                        className="w-full h-2 rounded-t-sm flex items-center justify-center text-[8px] font-bold text-white uppercase tracking-wider"
+                        style={{
+                          backgroundColor: tower.status === 'Delayed' ? '#DC2626' : '#17191D',
+                        }}
                       >
-                        <div>
-                          <span className="font-bold text-[#17191D] block">{act.workPackage}</span>
-                          <span className="text-[10px] text-[#737B88]">{act.tower} · {act.floor} · {act.stage}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold text-[#00594F] block">{act.actualProgress}%</span>
-                          <span className="text-[10px] text-[#737B88]">{act.varianceDays < 0 ? `${act.varianceDays}d` : 'On track'}</span>
-                        </div>
+                        Roof
                       </div>
-                    ))}
+
+                      {/* Slabs Loop */}
+                      {Array.from({ length: total }).map((_, fIdx) => {
+                        const floorNum = fIdx + 1;
+                        const isCompleted = floorNum <= completed;
+                        const isActive = floorNum === active;
+                        const isCritical = criticalFloor === floorNum;
+                        const isSelectedFloor = isCurrent && activeFloorNumber === floorNum;
+                        const isDelayed = tower.status === 'Delayed' && floorNum > completed && floorNum <= completed + 2;
+
+                        let bg = '#E2E8F0';
+                        if (isCritical) bg = '#DC2626';
+                        else if (isCompleted) bg = '#00594F';
+                        else if (isActive) bg = '#0D9488';
+                        else if (isDelayed) bg = '#D97706';
+
+                        return (
+                          <div
+                            key={floorNum}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTowerName(tower.name);
+                              setActiveFloorNumber(floorNum);
+                            }}
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredSlab({
+                                x: rect.right + 12,
+                                y: rect.top - 20,
+                                towerName: tower.name,
+                                floorNumber: floorNum,
+                                stage: isCompleted ? 'Completed Slab' : isActive ? tower.currentStage : 'Upcoming Slab',
+                                status: isCritical ? 'Critical Hold' : isCompleted ? 'Inspection Passed' : isActive ? 'Active Pour' : 'Scheduled',
+                                isCritical: isCritical,
+                                issueTitle: isCritical ? 'Concrete cube-test failure & honeycombing' : undefined,
+                              });
+                            }}
+                            onMouseLeave={() => setHoveredSlab(null)}
+                            className={clsx(
+                              'w-full rounded-[1px] relative cursor-pointer transition-all flex items-center justify-between px-1.5',
+                              isSelectedFloor ? 'ring-2 ring-black z-10' : 'hover:opacity-80'
+                            )}
+                            style={{
+                              height: `${slabH}px`,
+                              backgroundColor: bg,
+                            }}
+                          >
+                            <span className="text-[7px] font-bold text-white select-none">
+                              {floorNum}
+                            </span>
+                            {isCritical && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Plinth Base */}
+                      <div className="w-full h-1.5 bg-slate-400 rounded-b-sm" />
+                    </div>
+
+                    <div className="mt-2.5 text-center w-full">
+                      <span className="text-xs font-bold text-[#17191D] block">
+                        {tower.currentStage}
+                      </span>
+                      <span className="text-[10px] text-[#737B88] tabular-nums block mt-0.5">
+                        {completed}/{total} slabs cast ({tower.varianceDays >= 0 ? 'On pace' : `${Math.abs(tower.varianceDays)}d late`})
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Architectural Legend */}
+          <div className="pt-3 border-t border-[#F1F5F9] flex flex-wrap items-center justify-between text-xs text-[#737B88] gap-2">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#00594F]" />
+                Completed & Passed
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#0D9488]" />
+                In Progress Casting
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#D97706]" />
+                Delayed Pours
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#DC2626]" />
+                Critical Defect Hold
+              </span>
+            </div>
+
+            <span className="text-[11px] text-[#00594F] font-semibold">
+              Currently Focusing: {currentTower.name} · Floor {activeFloorNumber}
+            </span>
+          </div>
+        </div>
+
+        {/* ── RIGHT: DIRECT FLOOR INSPECTOR & SITE DEFECT PHOTO (5 cols / 42%) ── */}
+        <div className="lg:col-span-5 bg-white border border-[#E5E7EB] rounded-xl shadow-2xs p-5 flex flex-col justify-between space-y-4">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#737B88] block">
+                  Interactive Floor Inspector
+                </span>
+                <h3 className="text-base font-bold text-[#17191D]">
+                  {currentTower.name} · Floor {String(activeFloorNumber).padStart(2, '0')}
+                </h3>
+              </div>
+
+              <span className={clsx(
+                'text-xs font-bold px-2 py-0.5 rounded-full',
+                hasDefectOnActiveFloor
+                  ? 'bg-rose-100 text-[#C63F43] border border-rose-300'
+                  : 'bg-emerald-100 text-[#16805D]'
+              )}>
+                {hasDefectOnActiveFloor ? 'Critical Hold Active' : 'Compliant'}
+              </span>
+            </div>
+
+            {/* DIRECT FLOOR LEVEL PICKER (NOT JUST CLICKING TINY GRAPH!) */}
+            <div className="space-y-1.5 my-3">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-[#737B88]">
+                <span>Floor Level Selector ({currentTower.totalFloors} Levels)</span>
+                <span>Tap any level to inspect</span>
+              </div>
+
+              <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
+                {Array.from({ length: currentTower.totalFloors }).map((_, idx) => {
+                  const fNum = idx + 1;
+                  const isDone = fNum <= currentTower.completedFloors;
+                  const isCrit = activeProject.id === 'P004' && currentTower.name === 'Tower 1' && fNum === 5;
+                  const isSel = activeFloorNumber === fNum;
+
+                  return (
+                    <button
+                      key={fNum}
+                      onClick={() => setActiveFloorNumber(fNum)}
+                      className={clsx(
+                        'h-8 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center relative',
+                        isSel
+                          ? 'bg-[#17191D] text-white shadow-xs scale-105'
+                          : isCrit
+                          ? 'bg-rose-100 text-[#C63F43] border border-rose-300'
+                          : isDone
+                          ? 'bg-teal-50 text-[#00594F] border border-teal-200'
+                          : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      )}
+                    >
+                      <span>F{String(fNum).padStart(2, '0')}</span>
+                      {isCrit && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-600 absolute top-1 right-1" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Active Floor Metrics (NO micro progress bars!) */}
+            <div className="grid grid-cols-2 gap-2 text-xs my-3">
+              <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9]">
+                <span className="text-[10px] text-[#737B88] font-medium block">Physical Execution</span>
+                <span className="text-lg font-black text-[#17191D] tabular-nums mt-0.5 block">
+                  {activeFloorNumber <= currentTower.completedFloors ? '100%' : activeFloorNumber === 5 && activeProject.id === 'P004' ? '80%' : '0%'}
+                </span>
+                <span className="text-[10px] text-[#737B88]">
+                  {activeFloorNumber <= currentTower.completedFloors ? 'Concrete cast complete' : 'In casting cycle'}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9]">
+                <span className="text-[10px] text-[#737B88] font-medium block">Quality Verification</span>
+                <span className="text-lg font-black text-[#16805D] tabular-nums mt-0.5 block">
+                  {activeFloorNumber <= currentTower.completedFloors ? '100%' : '0%'}
+                </span>
+                <span className="text-[10px] text-[#737B88]">
+                  {hasDefectOnActiveFloor ? 'Blocked by testing' : 'Signed off'}
+                </span>
+              </div>
+            </div>
+
+            {/* REAL ON-SITE CAMERA DEFECT PHOTO EVIDENCE & STATEMENT */}
+            <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#17191D] flex items-center gap-1.5">
+                  <Camera size={14} className="text-[#00594F]" />
+                  <span>On-Site Observation Photo & Defect Statement</span>
+                </span>
+
+                <button
+                  onClick={() => setUploadModalOpen(true)}
+                  className="px-2 py-1 rounded bg-[#17191D] text-white text-[10px] font-bold hover:bg-black transition-colors flex items-center gap-1 shadow-xs"
+                >
+                  <Upload size={10} />
+                  <span>Log Site Photo</span>
+                </button>
+              </div>
+
+              {hasDefectOnActiveFloor ? (
+                <div className="space-y-2">
+                  <div className="relative rounded-lg overflow-hidden border border-red-200 bg-black">
+                    <img
+                      src={activeDefect.image}
+                      alt="Defect"
+                      className="w-full h-40 object-cover"
+                    />
+                    <div className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs text-white text-[9px] px-2 py-0.5 rounded font-mono">
+                      GPS: 28.4595° N, 77.0266° E · Floor {activeFloorNumber} Core
+                    </div>
+                  </div>
+
+                  <div className="text-xs bg-white p-3 rounded-lg border border-red-200 space-y-1">
+                    <p className="font-bold text-[#C63F43] leading-snug">
+                      "{activeDefect.statement}"
+                    </p>
+                    <p className="text-[10px] text-[#737B88]">
+                      {activeDefect.author} · {activeDefect.timestamp}
+                    </p>
+                    <div className="pt-2 flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setTab('nc');
+                          selectNC('NC-0001');
+                        }}
+                        className="px-2.5 py-1 rounded bg-red-600 text-white text-[10px] font-bold hover:bg-red-700 transition-colors"
+                      >
+                        Inspect NC-0001 →
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTab('wir');
+                          selectWIR('WIR-0021');
+                        }}
+                        className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 text-[10px] font-bold hover:bg-slate-200 transition-colors"
+                      >
+                        Inspect WIR-0021 →
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ) : (
+                <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs text-[#737B88] text-center">
+                  <CheckCircle2 size={18} className="text-[#16805D] mx-auto mb-1" />
+                  <p className="font-semibold text-[#17191D]">All Reinforcement & Concrete Compliant</p>
+                  <p className="text-[10px]">No active defect observations registered on this floor level.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Active Floor Work Packages */}
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[11px] font-bold text-[#17191D] block">
+                Active Work Packages on Level {activeFloorNumber}
+              </span>
+              <div className="space-y-1 max-h-36 overflow-y-auto text-xs">
+                {floorActivities.length > 0 ? (
+                  floorActivities.map(act => (
+                    <div
+                      key={act.id}
+                      onClick={() => selectActivity(act.id)}
+                      className="p-2 rounded-lg border border-[#E5E7EB] hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <div>
+                        <span className="font-bold text-[#17191D] block text-[11px]">{act.workPackage}</span>
+                        <span className="text-[10px] text-[#737B88]">{act.stage} · {act.projectManager}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-[#00594F] block tabular-nums">{act.actualProgress}%</span>
+                        <span className={clsx(
+                          'text-[10px] font-medium',
+                          act.varianceDays < 0 ? 'text-[#C63F43]' : 'text-[#16805D]'
+                        )}>
+                          {act.varianceDays < 0 ? `${act.varianceDays}d late` : 'On pace'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-2.5 text-center text-[11px] text-[#737B88] bg-[#FAFBFB] rounded-lg border border-[#F1F5F9]">
+                    Standard routine slab casting cycle. No blocked activities.
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
+          <div className="pt-3 border-t border-[#F1F5F9] flex items-center justify-between text-xs text-[#737B88]">
+            <span>Contractor: <strong>{currentTower.contractorId === 'C001' ? 'ABC Civil Works' : 'Sharma Formwork'}</strong></span>
+            <span>Target Slabs: <strong>{currentTower.completedFloors}/{currentTower.totalFloors} Cast</strong></span>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* ============================================================
           SIMULATE SITE PHOTO UPLOAD MODAL
-          Allows site engineers to snap photo on site & post issue
           ============================================================ */}
       {uploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in">
@@ -903,7 +774,7 @@ export function WIPPage() {
                 <input
                   type="text"
                   readOnly
-                  value={`${drawerProject?.name} · ${activeDrawerTower?.name} · Floor ${drawerFloorNumber}`}
+                  value={`${activeProject.name} · ${currentTower.name} · Floor ${activeFloorNumber}`}
                   className="w-full h-8 px-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-800 font-semibold"
                 />
               </div>
@@ -927,8 +798,8 @@ export function WIPPage() {
                 </label>
                 <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer">
                   <Camera size={24} className="text-slate-400 mx-auto mb-1" />
-                  <span className="text-xs font-bold text-[#00594F] block">Tap to Capture from Camera</span>
-                  <span className="text-[10px] text-[#737B88]">nc-0001-cube-fail.jpg auto-detected from mobile</span>
+                  <span className="text-xs font-bold text-[#00594F] block">Tap to Capture from Mobile Camera</span>
+                  <span className="text-[10px] text-[#737B88]">nc-0001-cube-fail.jpg auto-detected from mobile upload</span>
                 </div>
               </div>
 
@@ -980,7 +851,7 @@ export function WIPPage() {
         </div>
       )}
 
-      {/* Floating Hover Tooltip for Skyline */}
+      {/* Floating Hover Tooltip for Skyline Slabs */}
       {hoveredSlab && (
         <div
           className="fixed z-50 bg-[#17191D] text-white rounded-xl p-3 shadow-2xl pointer-events-none text-xs border border-slate-700/60 max-w-xs animate-in fade-in duration-100"
@@ -991,7 +862,7 @@ export function WIPPage() {
         >
           <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-1.5">
             <span className="font-bold text-white">
-              {hoveredSlab.projectName} · {hoveredSlab.towerName}
+              {hoveredSlab.towerName}
             </span>
             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300">
               Floor {String(hoveredSlab.floorNumber).padStart(2, '0')}
