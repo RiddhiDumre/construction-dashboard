@@ -1012,3 +1012,473 @@ export const PORTFOLIO_PROGRESS_CURVE: ProgressCurvePoint[] = [
   { period: 'Nov 25', planned: 76, actual: 64, target: 76 },
   { period: 'Dec 25', planned: 82, actual: 64, target: 82 },
 ];
+
+// ============================================================
+// GODREJ SUITE ENTERPRISE INTEGRATION MODELS (Ingested via APIs)
+// D4U Enquiry & Document Workflow, Compliance Tracker & CP Payment
+// ============================================================
+
+export type D4UStage =
+  | 'Enquiry Created'
+  | 'Enquiry Review'
+  | 'Approval'
+  | 'Document Upload'
+  | 'Document Verification'
+  | 'Further Processing'
+  | 'Flat / Sales Tracking';
+
+export interface D4UDocument {
+  id: string;
+  name: string;
+  type: 'PAN Card' | 'Aadhaar Card' | 'Bank Sanction Letter' | 'Allotment Agreement' | 'Salary Slips / ITR';
+  status: 'Pending' | 'Uploaded' | 'Verified' | 'Rejected';
+  maskedNumber?: string;
+  uploadedDate?: string;
+  verifiedBy?: string;
+}
+
+export interface D4UEnquiry {
+  id: string;
+  customerName: string;
+  phone: string;
+  email: string;
+  projectId: string;
+  tower: string;
+  unitNumber: string;
+  unitType: '2 BHK' | '3 BHK' | '4 BHK Luxury' | 'Duplex Penthouse';
+  budgetCr: number;
+  stage: D4UStage;
+  assignedSalesLead: string;
+  createdDate: string;
+  paymentPlan: 'Construction Linked (CLP)' | 'Down Payment 10:90' | 'Flexi Pay 20:80';
+  bspRateSqFt: number;
+  tokenPaid: number;
+  eoiNumber?: string;
+  documents: D4UDocument[];
+}
+
+export const D4U_ENQUIRIES: D4UEnquiry[] = [
+  {
+    id: 'ENQ-8041',
+    customerName: 'Vikram & Radhika Singhania',
+    phone: '+91 98201 •••••',
+    email: 'v.singhania@••••••.com',
+    projectId: 'P001',
+    tower: 'Tower A',
+    unitNumber: 'A-1402',
+    unitType: '3 BHK',
+    budgetCr: 3.45,
+    stage: 'Document Verification',
+    assignedSalesLead: 'Neha Kapoor',
+    createdDate: '2025-09-18',
+    paymentPlan: 'Construction Linked (CLP)',
+    bspRateSqFt: 18400,
+    tokenPaid: 500000,
+    eoiNumber: 'EOI-MUM-204',
+    documents: [
+      { id: 'DOC-1', name: 'PAN Card', type: 'PAN Card', status: 'Verified', maskedNumber: 'ABCPS••••K', uploadedDate: '2025-09-20', verifiedBy: 'D4U Automated KYC API' },
+      { id: 'DOC-2', name: 'Aadhaar Card', type: 'Aadhaar Card', status: 'Verified', maskedNumber: '•••• •••• 8821', uploadedDate: '2025-09-20', verifiedBy: 'UIDAI API Gateway' },
+      { id: 'DOC-3', name: 'Bank Loan Sanction (HDFC)', type: 'Bank Sanction Letter', status: 'Uploaded', uploadedDate: '2025-09-24' },
+      { id: 'DOC-4', name: 'Draft Allotment Agreement', type: 'Allotment Agreement', status: 'Pending' },
+    ],
+  },
+  {
+    id: 'ENQ-8042',
+    customerName: 'Dr. Sameer Kulkarni',
+    phone: '+91 97692 •••••',
+    email: 'sameer.k@••••••.org',
+    projectId: 'P004',
+    tower: 'Tower 1',
+    unitNumber: 'T1-0804',
+    unitType: '4 BHK Luxury',
+    budgetCr: 4.80,
+    stage: 'Further Processing',
+    assignedSalesLead: 'Rahul Deshmukh',
+    createdDate: '2025-09-12',
+    paymentPlan: 'Flexi Pay 20:80',
+    bspRateSqFt: 22500,
+    tokenPaid: 1000000,
+    eoiNumber: 'EOI-PUN-119',
+    documents: [
+      { id: 'DOC-5', name: 'PAN Card', type: 'PAN Card', status: 'Verified', maskedNumber: 'BKRPS••••M', uploadedDate: '2025-09-14', verifiedBy: 'D4U Automated KYC API' },
+      { id: 'DOC-6', name: 'Aadhaar Card', type: 'Aadhaar Card', status: 'Verified', maskedNumber: '•••• •••• 4190', uploadedDate: '2025-09-14', verifiedBy: 'UIDAI API Gateway' },
+      { id: 'DOC-7', name: 'Bank Sanction (SBI)', type: 'Bank Sanction Letter', status: 'Verified', uploadedDate: '2025-09-16', verifiedBy: 'Credit Ops' },
+      { id: 'DOC-8', name: 'Executed Allotment Agreement', type: 'Allotment Agreement', status: 'Verified', uploadedDate: '2025-09-21', verifiedBy: 'Legal Dept' },
+    ],
+  },
+  {
+    id: 'ENQ-8043',
+    customerName: 'Ananya & Rohit Bansal',
+    phone: '+91 98110 •••••',
+    email: 'rohit.bansal@••••••.in',
+    projectId: 'P002',
+    tower: 'Block 2',
+    unitNumber: 'B2-0601',
+    unitType: '2 BHK',
+    budgetCr: 1.95,
+    stage: 'Enquiry Review',
+    assignedSalesLead: 'Pooja Verma',
+    createdDate: '2025-10-02',
+    paymentPlan: 'Down Payment 10:90',
+    bspRateSqFt: 14200,
+    tokenPaid: 250000,
+    eoiNumber: 'EOI-BLR-089',
+    documents: [
+      { id: 'DOC-9', name: 'PAN Card', type: 'PAN Card', status: 'Uploaded', maskedNumber: 'AAAPZ••••R', uploadedDate: '2025-10-03' },
+      { id: 'DOC-10', name: 'Aadhaar Card', type: 'Aadhaar Card', status: 'Pending' },
+    ],
+  },
+  {
+    id: 'ENQ-8044',
+    customerName: 'Kunal Merchant (NRI - Dubai)',
+    phone: '+971 50 •••••••',
+    email: 'kunal.m@••••••.ae',
+    projectId: 'P005',
+    tower: 'Tower 1',
+    unitNumber: 'T1-2201',
+    unitType: 'Duplex Penthouse',
+    budgetCr: 7.20,
+    stage: 'Flat / Sales Tracking',
+    assignedSalesLead: 'Neha Kapoor',
+    createdDate: '2025-08-20',
+    paymentPlan: 'Construction Linked (CLP)',
+    bspRateSqFt: 29000,
+    tokenPaid: 2000000,
+    eoiNumber: 'EOI-MUM-190',
+    documents: [
+      { id: 'DOC-11', name: 'Passport & OCI', type: 'Aadhaar Card', status: 'Verified', maskedNumber: 'P981•••••', uploadedDate: '2025-08-22', verifiedBy: 'NRI Legal Cell' },
+      { id: 'DOC-12', name: 'NRE Bank Remittance Proof', type: 'Bank Sanction Letter', status: 'Verified', uploadedDate: '2025-08-25', verifiedBy: 'Treasury' },
+      { id: 'DOC-13', name: 'Registered Agreement for Sale', type: 'Allotment Agreement', status: 'Verified', uploadedDate: '2025-09-02', verifiedBy: 'Sub-Registrar API' },
+    ],
+  },
+  {
+    id: 'ENQ-8045',
+    customerName: 'Meenakshi Sundaram',
+    phone: '+91 94440 •••••',
+    email: 'm.sundaram@••••••.com',
+    projectId: 'P003',
+    tower: 'Tower A',
+    unitNumber: 'A-0403',
+    unitType: '3 BHK',
+    budgetCr: 2.65,
+    stage: 'Document Upload',
+    assignedSalesLead: 'Karthik Raja',
+    createdDate: '2025-09-29',
+    paymentPlan: 'Construction Linked (CLP)',
+    bspRateSqFt: 16800,
+    tokenPaid: 500000,
+    eoiNumber: 'EOI-HYD-044',
+    documents: [
+      { id: 'DOC-14', name: 'PAN Card', type: 'PAN Card', status: 'Verified', maskedNumber: 'CKAPS••••D', uploadedDate: '2025-09-30', verifiedBy: 'D4U Automated KYC API' },
+      { id: 'DOC-15', name: 'Salary Slips (3 Months)', type: 'Salary Slips / ITR', status: 'Uploaded', uploadedDate: '2025-10-01' },
+      { id: 'DOC-16', name: 'Bank Loan Sanction (ICICI)', type: 'Bank Sanction Letter', status: 'Pending' },
+    ],
+  },
+];
+
+// ── Compliance Tracker (Statutory, RERA, MoEF, Safety) ─────────
+export type ComplianceCategory =
+  | 'RERA Compliance'
+  | 'Environmental Clearance (MoEF)'
+  | 'Fire & Life Safety NOC'
+  | 'Structural Stability (IS 456)'
+  | 'Labour & Factory License';
+
+export interface ComplianceRecord {
+  id: string;
+  projectId: string;
+  category: ComplianceCategory;
+  title: string;
+  authority: string;
+  filingFrequency: 'Quarterly' | 'Annual' | 'Milestone-based';
+  status: 'Compliant' | 'Pending Review' | 'Action Required' | 'Overdue';
+  dueDate: string;
+  lastFiledDate: string;
+  complianceRating: number; // 1 to 5
+  assignedOfficer: string;
+  remarks: string;
+  documentsCount: number;
+  pdfAvailable: boolean;
+}
+
+export const COMPLIANCE_RECORDS: ComplianceRecord[] = [
+  {
+    id: 'CMP-RERA-01',
+    projectId: 'P001',
+    category: 'RERA Compliance',
+    title: 'MahaRERA Q2 Quarterly Progress Report (QPR) & CA Certificate Form 3',
+    authority: 'MahaRERA Authority (Maharashtra)',
+    filingFrequency: 'Quarterly',
+    status: 'Compliant',
+    dueDate: '2025-10-15',
+    lastFiledDate: '2025-10-08',
+    complianceRating: 5,
+    assignedOfficer: 'S. Nambiar (Legal & Secretarial)',
+    remarks: 'Form 1 (Architect), Form 2 (Engineer), Form 3 (CA) uploaded with bank escrow reconciliation. Zero audit flags.',
+    documentsCount: 6,
+    pdfAvailable: true,
+  },
+  {
+    id: 'CMP-ENV-02',
+    projectId: 'P004',
+    category: 'Environmental Clearance (MoEF)',
+    title: 'MoEF & SEIAA Half-Yearly Environmental Clearance Compliance & Air/Water Monitoring',
+    authority: 'State Environment Impact Assessment Authority (SEIAA)',
+    filingFrequency: 'Quarterly',
+    status: 'Action Required',
+    dueDate: '2025-10-31',
+    lastFiledDate: '2025-04-20',
+    complianceRating: 3,
+    assignedOfficer: 'R. K. Iyer (EHS Manager)',
+    remarks: 'Ambient PM10 levels exceeded permissible threshold during excavation. Dust suppression water sprinklers increased; revised monitoring report awaited.',
+    documentsCount: 4,
+    pdfAvailable: true,
+  },
+  {
+    id: 'CMP-FIRE-03',
+    projectId: 'P001',
+    category: 'Fire & Life Safety NOC',
+    title: 'Provisional Fire Safety Compliance Renewal & Dry/Wet Riser Pressure Certification',
+    authority: 'Municipal Corporation Fire Brigade',
+    filingFrequency: 'Annual',
+    status: 'Compliant',
+    dueDate: '2025-11-30',
+    lastFiledDate: '2025-09-12',
+    complianceRating: 5,
+    assignedOfficer: 'Capt. R. Deshmukh',
+    remarks: 'Hydrostatic pressure test on fire line completed up to Floor 18. Fire pump house foundation approved.',
+    documentsCount: 5,
+    pdfAvailable: true,
+  },
+  {
+    id: 'CMP-STR-04',
+    projectId: 'P004',
+    category: 'Structural Stability (IS 456)',
+    title: 'Structural Engineer Core Strength Affidavit — Post-Rebound Hammer Verification',
+    authority: 'IIT Bombay Civil Structural Cell / Bureau Veritas',
+    filingFrequency: 'Milestone-based',
+    status: 'Pending Review',
+    dueDate: '2025-10-25',
+    lastFiledDate: '2025-10-14',
+    complianceRating: 2,
+    assignedOfficer: 'Structural Consultant Dr. V. Menon',
+    remarks: 'Rectification methodology for Floor 05 core cube strength submitted. 28-day core audit sign-off pending from independent engineer.',
+    documentsCount: 8,
+    pdfAvailable: true,
+  },
+  {
+    id: 'CMP-RERA-05',
+    projectId: 'P002',
+    category: 'RERA Compliance',
+    title: 'Karnataka RERA Title Search & Encumbrance Certificate Verification',
+    authority: 'K-RERA (Bengaluru)',
+    filingFrequency: 'Annual',
+    status: 'Compliant',
+    dueDate: '2025-12-15',
+    lastFiledDate: '2025-08-30',
+    complianceRating: 5,
+    assignedOfficer: 'Adv. M. Hegde',
+    remarks: 'Clear title certificate issued for Phase 2 expansion. Nil encumbrance confirmed.',
+    documentsCount: 3,
+    pdfAvailable: true,
+  },
+  {
+    id: 'CMP-LAB-06',
+    projectId: 'P005',
+    category: 'Labour & Factory License',
+    title: 'BOCW Act Welfare Cess Remittance & Labour Camp Hygiene Audit Certificate',
+    authority: 'State Labour Commissionerate',
+    filingFrequency: 'Quarterly',
+    status: 'Compliant',
+    dueDate: '2025-10-20',
+    lastFiledDate: '2025-10-05',
+    complianceRating: 4,
+    assignedOfficer: 'P. Nair (Admin Head)',
+    remarks: '1% construction cess of ₹1.42 Cr deposited via treasury challan. Creche and drinking water RO filtration plant inspected.',
+    documentsCount: 4,
+    pdfAvailable: true,
+  },
+];
+
+// ── CP (Channel Partner) Payment Portal ─────────────────────────
+export interface ChannelPartnerPayout {
+  id: string;
+  cpName: string;
+  reraRegNumber: string;
+  projectId: string;
+  unitsBooked: number;
+  totalBrokerageCr: number;
+  paidBrokerageCr: number;
+  outstandingBrokerageCr: number;
+  status: 'Submitted' | 'Verified' | 'Processing Payment' | 'Payment Completed';
+  lastDisbursedDate: string;
+  bankUtr?: string;
+  invoiceNumber: string;
+}
+
+export const CP_PAYOUTS: ChannelPartnerPayout[] = [
+  {
+    id: 'CP-PAY-901',
+    cpName: 'Anarock Property Consultants Pvt Ltd',
+    reraRegNumber: 'A51900000108',
+    projectId: 'P001',
+    unitsBooked: 24,
+    totalBrokerageCr: 1.82,
+    paidBrokerageCr: 1.25,
+    outstandingBrokerageCr: 0.57,
+    status: 'Processing Payment',
+    lastDisbursedDate: '2025-09-15',
+    bankUtr: 'HDFCR5202509158812',
+    invoiceNumber: 'INV-ANR-2025-091',
+  },
+  {
+    id: 'CP-PAY-902',
+    cpName: 'Square Yards Real Estate Advisory',
+    reraRegNumber: 'A51800000244',
+    projectId: 'P004',
+    unitsBooked: 18,
+    totalBrokerageCr: 1.45,
+    paidBrokerageCr: 1.05,
+    outstandingBrokerageCr: 0.40,
+    status: 'Verified',
+    lastDisbursedDate: '2025-08-30',
+    bankUtr: 'ICICR5202508304192',
+    invoiceNumber: 'INV-SQY-8012',
+  },
+  {
+    id: 'CP-PAY-903',
+    cpName: '360 Realtors Pvt Ltd',
+    reraRegNumber: 'A51700000891',
+    projectId: 'P002',
+    unitsBooked: 12,
+    totalBrokerageCr: 0.94,
+    paidBrokerageCr: 0.94,
+    outstandingBrokerageCr: 0.00,
+    status: 'Payment Completed',
+    lastDisbursedDate: '2025-10-02',
+    bankUtr: 'SBINR5202510029910',
+    invoiceNumber: 'INV-360-4418',
+  },
+  {
+    id: 'CP-PAY-904',
+    cpName: 'Knight Frank India Advisory',
+    reraRegNumber: 'A51900000019',
+    projectId: 'P005',
+    unitsBooked: 8,
+    totalBrokerageCr: 1.28,
+    paidBrokerageCr: 0.80,
+    outstandingBrokerageCr: 0.48,
+    status: 'Submitted',
+    lastDisbursedDate: '2025-07-25',
+    invoiceNumber: 'INV-KF-9921',
+  },
+  {
+    id: 'CP-PAY-905',
+    cpName: 'PropTiger Realty Network',
+    reraRegNumber: 'A51800000312',
+    projectId: 'P003',
+    unitsBooked: 15,
+    totalBrokerageCr: 1.10,
+    paidBrokerageCr: 0.85,
+    outstandingBrokerageCr: 0.25,
+    status: 'Verified',
+    lastDisbursedDate: '2025-09-10',
+    bankUtr: 'AXISR5202509102214',
+    invoiceNumber: 'INV-PT-6601',
+  },
+];
+
+// ── QSI (Quality Sensitivity Index) & QHour (Godrej Methodology) 
+export interface QHourRoleLog {
+  role: 'PM' | 'CH' | 'OH' | 'PD' | 'RH' | 'ZCEO';
+  roleTitle: string;
+  userName: string;
+  hoursLogged: number;
+  targetHours: number;
+  ncsRaised: number;
+  siteVisitsCompleted: number;
+}
+
+export const QHOUR_LOGS: QHourRoleLog[] = [
+  { role: 'ZCEO', roleTitle: 'Zonal Chief Executive Officer', userName: 'Rajesh Gopinath (ZCEO)', hoursLogged: 18, targetHours: 20, ncsRaised: 2, siteVisitsCompleted: 4 },
+  { role: 'RH',   roleTitle: 'Regional Head', userName: 'Alok Singhal (RH West)', hoursLogged: 36, targetHours: 40, ncsRaised: 5, siteVisitsCompleted: 8 },
+  { role: 'PD',   roleTitle: 'Project Director', userName: 'Devendra Patil (PD)', hoursLogged: 52, targetHours: 50, ncsRaised: 9, siteVisitsCompleted: 14 },
+  { role: 'OH',   roleTitle: 'Operations Head', userName: 'Sunil Kulkarni (OH)', hoursLogged: 44, targetHours: 40, ncsRaised: 6, siteVisitsCompleted: 11 },
+  { role: 'CH',   roleTitle: 'Cluster Head', userName: 'Pradeep Mehra (CH)', hoursLogged: 60, targetHours: 60, ncsRaised: 12, siteVisitsCompleted: 18 },
+  { role: 'PM',   roleTitle: 'Project Manager', userName: 'Amit Sharma (PM)', hoursLogged: 88, targetHours: 80, ncsRaised: 19, siteVisitsCompleted: 26 },
+];
+
+export const QSI_MONTHLY_RATINGS = [
+  { month: 'May 2025', qsiScore: 3.8, status: 'Stable' },
+  { month: 'Jun 2025', qsiScore: 4.2, status: 'Improving' },
+  { month: 'Jul 2025', qsiScore: 3.9, status: 'Declining' },
+  { month: 'Aug 2025', qsiScore: 3.6, status: 'Declining' },
+  { month: 'Sep 2025', qsiScore: 3.5, status: 'Action Required' },
+  { month: 'Oct 2025', qsiScore: 3.9, status: 'Rebounding' },
+];
+
+// ── Enterprise Connected APIs List ──────────────────────────────
+export interface EnterpriseAPIConnector {
+  id: string;
+  name: string;
+  systemType: string;
+  status: 'Connected' | 'Syncing' | 'Degraded';
+  lastSync: string;
+  recordsIngested: number;
+  endpoint: string;
+  description: string;
+}
+
+export const ENTERPRISE_APIS: EnterpriseAPIConnector[] = [
+  {
+    id: 'API-QG',
+    name: 'Quality Godrej REST API',
+    systemType: 'Field QA / Site Inspections',
+    status: 'Connected',
+    lastSync: '2 mins ago',
+    recordsIngested: 48,
+    endpoint: 'https://api.internal.godrej.com/qa/v3/inspections',
+    description: 'Ingests site WIRs, non-compliances, rebar spacing checklists, cube failure logs.',
+  },
+  {
+    id: 'API-D4U',
+    name: 'Godrej D4U Commercial API',
+    systemType: 'Enquiry, KYC & Document Processing',
+    status: 'Connected',
+    lastSync: '4 mins ago',
+    recordsIngested: 184,
+    endpoint: 'https://d4u-api.internal.godrej.com/v2/enquiries',
+    description: 'Ingests buyer enquiries, PAN/Aadhaar automated verification, BSP rate schemes.',
+  },
+  {
+    id: 'API-CT',
+    name: 'Compliance Tracker API',
+    systemType: 'Dynamic Statutory Clearances',
+    status: 'Connected',
+    lastSync: '12 mins ago',
+    recordsIngested: 36,
+    endpoint: 'https://compliance.internal.godrej.com/api/v1/filings',
+    description: 'Tracks MahaRERA QPR Form 3, SEIAA environmental clearances, fire safety renewals.',
+  },
+  {
+    id: 'API-CP',
+    name: 'CP Payment Portal Gateway',
+    systemType: 'Channel Partner Disbursements',
+    status: 'Connected',
+    lastSync: '6 mins ago',
+    recordsIngested: 142,
+    endpoint: 'https://cp-payments.internal.godrej.com/payouts/v4',
+    description: 'Synchronizes broker invoices, TDS deductions, GST reconciliation & bank UTRs.',
+  },
+  {
+    id: 'API-P6',
+    name: 'Oracle Primavera P6 ERP Bridge',
+    systemType: 'Civil Construction Milestones',
+    status: 'Connected',
+    lastSync: '1 hour ago',
+    recordsIngested: 840,
+    endpoint: 'https://p6.internal.godrej.com/primavera/export/v21',
+    description: 'Ingests physical slab pouring timeline, milestone variances, critical path blockers.',
+  },
+];
+

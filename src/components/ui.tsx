@@ -17,7 +17,7 @@ interface StatusDotProps {
   size?: 'sm' | 'md';
 }
 export function StatusDot({ status, size = 'sm' }: StatusDotProps) {
-  const colors = { green: 'bg-[#10B981]', amber: 'bg-[#F59E0B]', red: 'bg-[#EF4444]' };
+  const colors = { green: 'bg-[#18845B]', amber: 'bg-[#B7791F]', red: 'bg-[#D92D20]' };
   const sizes = { sm: 'w-2 h-2', md: 'w-2.5 h-2.5' };
   return <span className={clsx('inline-block rounded-full flex-shrink-0', colors[status], sizes[size])} />;
 }
@@ -30,9 +30,9 @@ interface ScoreBadgeProps {
 export function ScoreBadge({ score, size = 'md' }: ScoreBadgeProps) {
   const status = score >= 80 ? 'green' : score >= 60 ? 'amber' : 'red';
   const colors = {
-    green: 'text-[#0F766E]',
-    amber: 'text-[#D97706]',
-    red: 'text-[#DC2626]',
+    green: 'text-[#18845B]',
+    amber: 'text-[#B7791F]',
+    red: 'text-[#D92D20]',
   };
   const sizes = {
     sm: 'text-xs font-bold',
@@ -48,9 +48,9 @@ interface SeverityBadgeProps {
 }
 export function SeverityBadge({ severity }: SeverityBadgeProps) {
   const styles: Record<string, string> = {
-    Critical: 'bg-rose-50 text-[#DC2626] border border-rose-200/80',
-    High: 'bg-orange-50 text-[#EA580C] border border-orange-200/80',
-    Medium: 'bg-amber-50 text-[#D97706] border border-amber-200/80',
+    Critical: 'bg-rose-50 text-[#D92D20] border border-rose-200/80',
+    High: 'bg-orange-50 text-[#D97706] border border-orange-200/80',
+    Medium: 'bg-amber-50 text-[#B7791F] border border-amber-200/80',
     Low: 'bg-slate-50 text-[#64748B] border border-slate-200/80',
   };
   return (

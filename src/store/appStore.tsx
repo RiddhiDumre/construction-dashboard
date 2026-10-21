@@ -10,12 +10,13 @@ import {
 } from '../data/seedData';
 
 // ── State ─────────────────────────────────────────────────────
-export type TabKey = 'overview' | 'wip' | 'sales' | 'wir' | 'quality' | 'nc' | 'contractors' | 'project-detail' | 'portfolio';
-export type UserRole = 'CXO' | 'ProjectsHead' | 'ProjectManager' | 'QualityInspector' | 'Contractor' | 'Admin';
+export type TabKey = 'overview' | 'wip' | 'sales' | 'commercial' | 'wir' | 'quality' | 'nc' | 'compliance' | 'contractors' | 'project-detail' | 'portfolio';
+export type UserRole = 'CXO' | 'ProjectsHead' | 'ProjectManager' | 'QualityInspector' | 'Contractor' | 'SalesCommercial' | 'Admin';
 
 export interface AppState {
   // Navigation
   activeTab: TabKey;
+  previousTab?: TabKey;
 
   // Role
   userRole: UserRole;
@@ -125,7 +126,8 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_TAB':
       return {
         ...state,
-        activeTab: action.tab === 'portfolio' ? 'overview' : action.tab,
+        previousTab: state.activeTab,
+        activeTab: action.tab === 'portfolio' ? 'overview' : (action.tab === 'sales' ? 'commercial' : action.tab),
       };
 
     case 'SET_USER_ROLE':
@@ -263,6 +265,7 @@ interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
   setTab: (tab: TabKey) => void;
+  navigateBack: () => void;
   setUserRole: (role: UserRole) => void;
   setFilter: (key: keyof AppState['filters'], value: string) => void;
   resetFilters: () => void;
@@ -287,6 +290,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const setTab = useCallback((tab: TabKey) => dispatch({ type: 'SET_TAB', tab }), []);
+  const navigateBack = useCallback(() => {
+    dispatch({ type: 'SET_TAB', tab: state.previousTab || 'overview' });
+  }, [state.previousTab]);
   const setUserRole = useCallback((role: UserRole) => dispatch({ type: 'SET_USER_ROLE', role }), []);
   const setFilter = useCallback((key: keyof AppState['filters'], value: string) => dispatch({ type: 'SET_FILTER', key, value }), []);
   const resetFilters = useCallback(() => dispatch({ type: 'RESET_FILTERS' }), []);
@@ -310,7 +316,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       state, dispatch,
-      setTab, setUserRole, setFilter, resetFilters, setWeights,
+      setTab, navigateBack, setUserRole, setFilter, resetFilters, setWeights,
       selectProject, selectWIR, selectNC, selectContractor, selectActivity, selectAudit,
       setAdminModalOpen, setWeightsModalOpen,
       updateWIRStatus, updateNCStatus, updateActivityProgress, resetDemo,

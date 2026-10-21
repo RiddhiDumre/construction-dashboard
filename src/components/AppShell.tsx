@@ -4,10 +4,10 @@
 // clear information hierarchy, subtle dividers, quiet chrome.
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search, Bell, ChevronDown, Check,
-  CheckCircle2, Calendar, MapPin
+  CheckCircle2, Calendar, MapPin, Database, Server, RefreshCw, X, ExternalLink
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useApp, type TabKey, type UserRole } from '../store/appStore';
@@ -15,23 +15,22 @@ import { AdminModal } from './AdminModal';
 import { WeightsConfigModal } from './WeightsConfigModal';
 import { ActivityDetailDrawer } from './ActivityDetailDrawer';
 import { AuditDetailDrawer } from './AuditDetailDrawer';
+import { ENTERPRISE_APIS } from '../data/seedData';
 
 const NAV_ITEMS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'wip', label: 'WIP' },
-  { key: 'sales', label: 'Commercial Units' },
-  { key: 'wir', label: 'WIR' },
-  { key: 'nc', label: 'Non-Compliance' },
+  { key: 'overview', label: 'Portfolio' },
+  { key: 'wip', label: 'Construction' },
   { key: 'quality', label: 'Quality' },
-  { key: 'contractors', label: 'Contractors' },
+  { key: 'commercial', label: 'Commercial' },
 ];
 
 const USER_ROLES: { role: UserRole; title: string; desc: string }[] = [
   { role: 'CXO', title: 'CXO / Leadership', desc: 'Portfolio-wide risks, RAG status & high-level health' },
   { role: 'ProjectsHead', title: 'Projects Head', desc: 'Construction milestones, delayed towers & schedule variance' },
   { role: 'ProjectManager', title: 'Project Manager', desc: 'Assigned site activities, contractor handoffs & blockers' },
-  { role: 'QualityInspector', title: 'Quality Inspector', desc: 'Assigned WIRs, site defect inspections & verification' },
+  { role: 'QualityInspector', title: 'Quality Inspector / SQH', desc: 'Assigned WIRs, site defect inspections & verification' },
   { role: 'Contractor', title: 'Contractor', desc: 'Contractor-specific activities, re-inspection & corrective evidence' },
+  { role: 'SalesCommercial', title: 'Sales & Channel Partners', desc: 'D4U buyer enquiries, KYC masking & CP brokerage payouts' },
   { role: 'Admin', title: 'System Administrator', desc: 'User & role permissions, project allocation & security matrix' },
 ];
 
@@ -42,23 +41,73 @@ const REPORTING_PERIODS = [
   'FY24',
 ];
 
+const ROLE_PERMISSIONS: Record<UserRole, TabKey[]> = {
+  CXO: ['overview', 'wip', 'quality', 'commercial', 'sales', 'nc', 'wir', 'compliance', 'contractors'],
+  ProjectsHead: ['overview', 'wip', 'quality', 'commercial', 'sales', 'nc', 'wir', 'compliance', 'contractors'],
+  ProjectManager: ['wip', 'quality', 'nc', 'wir', 'contractors'],
+  QualityInspector: ['quality', 'nc', 'wir', 'compliance'],
+  Contractor: ['wip', 'quality', 'nc', 'wir'],
+  SalesCommercial: ['commercial', 'sales', 'compliance'],
+  Admin: ['overview', 'wip', 'quality', 'commercial', 'sales', 'nc', 'wir', 'compliance', 'contractors'],
+};
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const {
     state,
     setTab,
     setUserRole,
     setFilter,
+    selectProject,
+    selectNC,
+    selectWIR,
+    selectActivity,
+    selectAudit,
   } = useApp();
 
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [apiHubOpen, setApiHubOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Global Escape key listener to dismiss any open drawer or modal cleanly
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        selectProject(null);
+        selectNC(null);
+        selectWIR(null);
+        selectActivity(null);
+        selectAudit(null);
+        setRoleDropdownOpen(false);
+        setPeriodDropdownOpen(false);
+        setNotifOpen(false);
+        setApiHubOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectProject, selectNC, selectWIR, selectActivity, selectAudit]);
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
   };
+
+  // Switch role and enforce tab access
+  const handleRoleChange = (role: UserRole, title: string) => {
+    setUserRole(role);
+    setRoleDropdownOpen(false);
+    triggerToast(`Switched view to ${title}`);
+    const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.CXO;
+    const current = state.activeTab === 'portfolio' ? 'overview' : state.activeTab;
+    if (!allowed.includes(current)) {
+      setTab(allowed[0]);
+    }
+  };
+
+  const allowedTabs = ROLE_PERMISSIONS[state.userRole] || ROLE_PERMISSIONS.CXO;
+  const visibleNavItems = NAV_ITEMS.filter(item => allowedTabs.includes(item.key));
 
   // Badges
   const openCritNCs = state.ncs.filter(n => n.severity === 'Critical' && n.status !== 'Closed').length;
@@ -102,25 +151,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </div>
 
-        {/* Center: Primary Navigation Links */}
-        <nav className="flex items-center gap-1 overflow-x-auto scrollbar-none px-4">
-          {NAV_ITEMS.map(item => {
-            const active =
-              state.activeTab === item.key ||
-              (item.key === 'overview' && state.activeTab === 'portfolio');
+        {/* Center: Primary Navigation Links (4 Executive Pillars) */}
+        <nav className="flex items-center gap-1.5 overflow-x-auto scrollbar-none px-4">
+          {visibleNavItems.map(item => {
+            let active = false;
+            if (item.key === 'overview') {
+              active = state.activeTab === 'overview' || state.activeTab === 'portfolio';
+            } else if (item.key === 'wip') {
+              active = state.activeTab === 'wip';
+            } else if (item.key === 'quality') {
+              active = ['quality', 'nc', 'wir', 'compliance', 'contractors'].includes(state.activeTab);
+            } else if (item.key === 'commercial') {
+              active = ['commercial', 'sales'].includes(state.activeTab);
+            } else {
+              active = state.activeTab === item.key;
+            }
 
             return (
               <button
                 key={item.key}
                 onClick={() => setTab(item.key)}
                 className={clsx(
-                  'px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all',
+                  'px-3.5 py-1.5 rounded-lg text-xs whitespace-nowrap transition-all flex items-center gap-1.5',
                   active
-                    ? 'bg-[#F1F5F9] text-[#17191D] font-semibold'
-                    : 'text-[#737B88] hover:text-[#17191D] hover:bg-slate-50'
+                    ? 'bg-[#17191D] text-white font-bold shadow-xs'
+                    : 'text-[#737B88] font-medium hover:text-[#17191D] hover:bg-slate-100'
                 )}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.key === 'quality' && openCritNCs > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626] animate-pulse" />
+                )}
               </button>
             );
           })}
@@ -128,6 +189,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Right: Period, Search, Notifications, Avatar */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
+          {/* Enterprise Connected APIs Pill */}
+          <button
+            onClick={() => setApiHubOpen(true)}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-[#B3E0D8] bg-[#E6F4F1] hover:bg-[#D1EFE9] text-xs font-bold text-[#00594F] transition-colors shadow-2xs whitespace-nowrap"
+            title="Enterprise API Ingestion Hub"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#16805D] animate-pulse" />
+            <span className="hidden sm:inline">5 APIs Connected</span>
+            <span className="sm:hidden">5 APIs</span>
+          </button>
+
           {/* Period Selector */}
           <div className="relative hidden md:block">
             <button
@@ -251,32 +323,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <p className="text-[10px] text-[#737B88]">Switch persona view</p>
                 </div>
                 <div className="space-y-1">
-                  {USER_ROLES.map(r => (
-                    <button
-                      key={r.role}
-                      onClick={() => {
-                        setUserRole(r.role);
-                        setRoleDropdownOpen(false);
-                        triggerToast(`Switched view to ${r.title}`);
-                      }}
-                      className={clsx(
-                        'w-full text-left p-2 rounded-xl text-xs transition-colors flex items-start justify-between',
-                        state.userRole === r.role
-                          ? 'bg-slate-100 text-[#17191D] font-semibold'
-                          : 'text-[#737B88] hover:bg-slate-50'
-                      )}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span>{r.title}</span>
-                          {state.userRole === r.role && <Check size={12} className="text-[#00594F]" />}
+                  {USER_ROLES.map(r => {
+                    const roleTabs = ROLE_PERMISSIONS[r.role] || [];
+                    return (
+                      <button
+                        key={r.role}
+                        onClick={() => handleRoleChange(r.role, r.title)}
+                        className={clsx(
+                          'w-full text-left p-2 rounded-xl text-xs transition-colors flex items-start justify-between',
+                          state.userRole === r.role
+                            ? 'bg-slate-100 text-[#17191D] font-semibold'
+                            : 'text-[#737B88] hover:bg-slate-50'
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span>{r.title}</span>
+                            {state.userRole === r.role && <Check size={12} className="text-[#00594F]" />}
+                            <span className="text-[9px] font-semibold px-1 rounded bg-slate-200/80 text-slate-700">
+                              {r.role === 'CXO' || r.role === 'Admin' ? 'Full Access' : `${roleTabs.length} tabs`}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[#737B88] font-normal mt-0.5 leading-snug">
+                            {r.desc}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-[#737B88] font-normal mt-0.5 leading-snug">
-                          {r.desc}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -305,6 +379,101 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           auditId={state.selectedAuditId}
           onClose={() => useApp().selectAudit(null)}
         />
+      )}
+
+      {/* Enterprise Data Ingestion Hub Modal */}
+      {apiHubOpen && (
+        <div
+          onClick={() => setApiHubOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-200 bg-slate-50/60 flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#E6F4F1] text-[#00594F] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Database size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900">
+                      Enterprise API Data Ingestion Hub
+                    </h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      5/5 Live & Healthy
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    BombayDC aggregates your existing paid enterprise platforms via REST APIs. Zero duplicate data entry.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setApiHubOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-900 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Ingested APIs List */}
+            <div className="p-6 space-y-3 max-h-[460px] overflow-y-auto">
+              {ENTERPRISE_APIS.map(api => (
+                <div
+                  key={api.id}
+                  className="p-3.5 rounded-xl border border-slate-200 bg-[#FAFBFB] hover:border-teal-300 hover:bg-white transition-all space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#16805D]" />
+                      <strong className="text-xs font-bold text-slate-900">{api.name}</strong>
+                      <span className="text-[10px] font-mono text-slate-500 bg-white border border-slate-200 px-1.5 py-0.2 rounded">
+                        {api.systemType}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="text-[#16805D] font-bold">{api.recordsIngested} Ingested</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="text-slate-500 font-mono text-[10px]">Synced {api.lastSync}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-snug">
+                    {api.description}
+                  </p>
+
+                  <div className="pt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                    <span className="truncate max-w-[340px]">{api.endpoint}</span>
+                    <span className="text-emerald-700 font-bold font-sans">OAuth2 Verified ✓</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+              <span className="text-[#737B88]">
+                Read-only aggregation. All data synchronized via TLS 1.3 secure webhooks.
+              </span>
+
+              <button
+                onClick={() => {
+                  triggerToast('Triggered real-time delta sync across 5 enterprise APIs');
+                  setApiHubOpen(false);
+                }}
+                className="px-3.5 py-1.5 bg-[#00594F] hover:bg-[#0D9488] text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+              >
+                <RefreshCw size={12} />
+                <span>Simulate Delta Sync</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

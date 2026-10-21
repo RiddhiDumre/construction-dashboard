@@ -13,6 +13,16 @@ import {
 
 // ── Helpers ───────────────────────────────────────────────────
 
+export function isProjectInCity(projectCity: string, selectedCity?: string): boolean {
+  if (!selectedCity || selectedCity === 'All Locations') return true;
+  const pCity = projectCity.toLowerCase().trim();
+  const sCity = selectedCity.toLowerCase().trim();
+  if (sCity === 'mumbai') {
+    return pCity === 'mumbai' || pCity === 'navi mumbai' || pCity === 'thane';
+  }
+  return pCity === sCity;
+}
+
 export function getRAGStatus(score: number): 'green' | 'amber' | 'red' {
   if (score >= RAG_THRESHOLDS.green) return 'green';
   if (score >= RAG_THRESHOLDS.amber) return 'amber';

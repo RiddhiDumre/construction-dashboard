@@ -9,7 +9,8 @@ import clsx from 'clsx';
 import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, ExternalLink,
   Users, AlertOctagon, ArrowDownRight, Award, ShieldAlert,
-  Download, FileWarning, CheckCircle2, ChevronRight, Search
+  Download, FileWarning, CheckCircle2, ChevronRight, Search,
+  MapPin, Building2, ChevronDown, RotateCcw
 } from 'lucide-react';
 import { useApp } from '../store/appStore';
 import { getAllContractorMetrics, type ContractorMetrics } from '../data/calculations';
@@ -137,21 +138,21 @@ export function ContractorsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-[#F1F5F9] text-[#64748B] font-semibold">
+            <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-[#F1F5F9] text-[#6B7280] font-semibold">
               Cross-Project Accountability
             </span>
-            <span className="text-xs text-[#94A3B8]">· Multi-Site Quality Benchmark</span>
+            <span className="text-xs text-[#8B93A1]">· Multi-Site Quality Benchmark</span>
           </div>
-          <h1 className="text-xl font-bold text-[#0F172A] mt-1 tracking-tight">Contractors</h1>
-          <p className="text-xs text-[#64748B] mt-0.5">
+          <h1 className="text-xl font-bold text-[#17191D] mt-1 tracking-tight">Contractors</h1>
+          <p className="text-xs text-[#6B7280] mt-0.5">
             Identify whether poor inspection pass rates and recurring defects stem from specific sites or systemic vendor deficiencies.
           </p>
         </div>
 
         {/* Global summary badge */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="text-xs font-medium text-[#64748B]">Showing:</span>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-white border border-[#E2E8F0] text-[#0F172A] shadow-xs">
+          <span className="text-xs font-medium text-[#6B7280]">Showing:</span>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-white border border-[#E6E9ED] text-[#17191D] shadow-2xs">
             {state.filters.city || 'All Cities'} · {filtered.length} Contractors
           </span>
         </div>
@@ -160,129 +161,207 @@ export function ContractorsPage() {
       {/* 4 Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Card 1: Total Active Contractors */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
+        <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Active Contractors</span>
-            <span className="p-1.5 rounded-md bg-[#F8FAFC] text-[#64748B] border border-[#E2E8F0]">
+            <span className="text-xs font-medium text-[#6B7280]">Active Contractors</span>
+            <span className="p-1.5 rounded-md bg-[#F8FAFC] text-[#6B7280] border border-[#E6E9ED]">
               <Users size={14} />
             </span>
           </div>
-          <div className="text-2xl font-bold text-[#0F172A] mt-2">
+          <div className="text-2xl font-bold text-[#17191D] mt-2">
             {summary.totalActive}
           </div>
-          <p className="text-[11px] text-[#64748B] mt-1">
+          <p className="text-[11px] text-[#6B7280] mt-1">
             Across 7 projects & 5 trade disciplines
           </p>
         </div>
 
         {/* Card 2: Contractors with Open Critical NCs */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
+        <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">With Critical NCs</span>
-            <span className={clsx('p-1.5 rounded-md border', summary.withCritNCs > 0 ? 'bg-rose-50 text-[#C63F43] border-rose-200' : 'bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]')}>
+            <span className="text-xs font-medium text-[#6B7280]">With Critical NCs</span>
+            <span className={clsx('p-1.5 rounded-md border', summary.withCritNCs > 0 ? 'bg-rose-50 text-[#D92D20] border-rose-200' : 'bg-[#F8FAFC] text-[#6B7280] border-[#E6E9ED]')}>
               <AlertOctagon size={14} />
             </span>
           </div>
-          <div className={clsx('text-2xl font-bold mt-2', summary.withCritNCs > 0 ? 'text-[#C63F43]' : 'text-[#0F172A]')}>
+          <div className={clsx('text-2xl font-bold mt-2', summary.withCritNCs > 0 ? 'text-[#D92D20]' : 'text-[#17191D]')}>
             {summary.withCritNCs}
           </div>
-          <p className="text-[11px] text-[#64748B] mt-1">
+          <p className="text-[11px] text-[#6B7280] mt-1">
             {summary.withCritNCs > 0 ? 'Mandatory stop-work / re-pour risk' : 'No critical safety breaches'}
           </p>
         </div>
 
         {/* Card 3: Contractors with Declining Pass Rate */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
+        <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Declining Quality Trend</span>
-            <span className={clsx('p-1.5 rounded-md border', summary.declining > 0 ? 'bg-amber-50 text-[#B7791F] border-amber-200' : 'bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]')}>
+            <span className="text-xs font-medium text-[#6B7280]">Declining Quality Trend</span>
+            <span className={clsx('p-1.5 rounded-md border', summary.declining > 0 ? 'bg-amber-50 text-[#B7791F] border-amber-200' : 'bg-[#F8FAFC] text-[#6B7280] border-[#E6E9ED]')}>
               <TrendingDown size={14} />
             </span>
           </div>
-          <div className={clsx('text-2xl font-bold mt-2', summary.declining > 0 ? 'text-[#B7791F]' : 'text-[#0F172A]')}>
+          <div className={clsx('text-2xl font-bold mt-2', summary.declining > 0 ? 'text-[#B7791F]' : 'text-[#17191D]')}>
             {summary.declining}
           </div>
-          <p className="text-[11px] text-[#64748B] mt-1">
+          <p className="text-[11px] text-[#6B7280] mt-1">
             {summary.declining > 0 ? 'Consecutive pass-rate drop in Q3' : 'Stable or improving standards'}
           </p>
         </div>
 
         {/* Card 4: Lowest First-Time Pass Rate */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-xs">
+        <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#64748B]">Lowest 1st-Pass Rate</span>
-            <span className="p-1.5 rounded-md bg-rose-50 text-[#C63F43] border border-rose-200">
+            <span className="text-xs font-medium text-[#6B7280]">Lowest 1st-Pass Rate</span>
+            <span className="p-1.5 rounded-md bg-rose-50 text-[#D92D20] border border-rose-200">
               <ArrowDownRight size={14} />
             </span>
           </div>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold text-[#C63F43]">
+            <span className="text-2xl font-bold text-[#D92D20]">
               {summary.lowestPassRate?.rate ?? 0}%
             </span>
-            <span className="text-xs font-medium text-[#64748B] truncate max-w-[120px]" title={summary.lowestPassRate?.name}>
+            <span className="text-xs font-medium text-[#6B7280] truncate max-w-[120px]" title={summary.lowestPassRate?.name}>
               {summary.lowestPassRate?.name}
             </span>
           </div>
-          <p className="text-[11px] text-[#64748B] mt-1">
+          <p className="text-[11px] text-[#6B7280] mt-1">
             High rework burden on site execution
           </p>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl p-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <FilterSelect
-            label="City"
-            value={state.filters.city}
-            options={CITY_OPTIONS}
-            onChange={v => setFilter('city', v)}
-          />
-          <FilterSelect
-            label="Project"
-            value={state.filters.project}
-            options={PROJECT_OPTIONS}
-            onChange={v => setFilter('project', v)}
-          />
-          <FilterSelect
-            label="Trade"
-            value={state.filters.category}
-            options={TRADE_OPTIONS}
-            onChange={v => setFilter('category', v)}
-          />
-          <div className="w-56">
-            <SearchInput
-              value={state.filters.search}
-              onChange={v => setFilter('search', v)}
-              placeholder="Search contractor or trade…"
-            />
+      {/* 2 SIDE-BY-SIDE DROPDOWNS: Location & Project (Unified across app) */}
+      <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#F1F5F9]">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-[#17191D] uppercase tracking-wider">
+              Contractor Risk & Performance Filters
+            </h2>
+            <span className="text-xs text-[#6B7280]">
+              · {state.filters.city || 'All Cities'} · {state.filters.project ? PROJECTS.find(p => p.id === state.filters.project)?.name : 'All Projects'}
+            </span>
           </div>
 
-          {hasFilters && (
-            <button
-              onClick={resetFilters}
-              className="text-xs text-[#315EFB] hover:text-[#2748C0] font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-            >
-              Reset filters
-            </button>
-          )}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {/* Search */}
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-2 text-[#8B93A1]" />
+              <input
+                type="text"
+                value={state.filters.search}
+                onChange={e => setFilter('search', e.target.value)}
+                placeholder="Search contractor or trade…"
+                className="h-8 pl-8 pr-3 text-xs bg-[#F6F7F8] hover:bg-[#F1F3F5] border border-[#E6E9ED] rounded-lg outline-none text-[#17191D] w-48 focus:bg-white focus:border-[#006B5B] transition-all"
+              />
+            </div>
+
+            {hasFilters && (
+              <button
+                onClick={resetFilters}
+                className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-[#6B7280] hover:text-[#17191D] hover:bg-[#F1F3F5] transition-colors"
+              >
+                <RotateCcw size={12} />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="text-xs text-[#64748B] font-medium">
-          Showing <span className="font-semibold text-[#0F172A]">{sorted.length}</span> contractors (sorted by risk priority)
+        {/* 2 SIDE-BY-SIDE DROPDOWNS: Location & Project */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* 1. City Dropdown */}
+          <div className="relative">
+            <label className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block mb-1">
+              Location
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#1E3A8A]">
+                <MapPin size={16} />
+              </div>
+              <select
+                value={state.filters.city || 'All Locations'}
+                onChange={(e) => {
+                  const val = e.target.value === 'All Locations' ? '' : e.target.value;
+                  setFilter('city', val);
+                  if (val && state.filters.project) {
+                    const p = PROJECTS.find(proj => proj.id === state.filters.project);
+                    if (p && p.city !== val) setFilter('project', '');
+                  }
+                }}
+                className="h-10 w-full pl-9 pr-8 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#17191D] focus:outline-none focus:border-[#1E3A8A] shadow-2xs appearance-none cursor-pointer"
+              >
+                <option value="All Locations">All Locations</option>
+                {CITY_OPTIONS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+            </div>
+          </div>
+
+          {/* 2. Project Dropdown */}
+          <div className="relative">
+            <label className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block mb-1">
+              Project
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#1E3A8A]">
+                <Building2 size={16} />
+              </div>
+              <select
+                value={state.filters.project || 'ALL'}
+                onChange={(e) => setFilter('project', e.target.value === 'ALL' ? '' : e.target.value)}
+                className="h-10 w-full pl-9 pr-8 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#17191D] focus:outline-none focus:border-[#1E3A8A] shadow-2xs appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Projects</option>
+                {(state.filters.city ? PROJECTS.filter(p => p.city === state.filters.city) : PROJECTS).map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.city})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Trade Discipline Quick Filter strip */}
+        <div className="flex items-center gap-1.5 pt-2 border-t border-[#F1F5F9] overflow-x-auto scrollbar-none">
+          <span className="text-[11px] font-semibold text-[#6B7280] mr-1 shrink-0">Trade:</span>
+          <button
+            onClick={() => setFilter('category', '')}
+            className={clsx(
+              'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors shrink-0',
+              !state.filters.category ? 'bg-[#17191D] text-white shadow-2xs' : 'bg-[#F6F7F8] text-[#6B7280] hover:text-[#17191D]'
+            )}
+          >
+            All Trades
+          </button>
+          {TRADE_OPTIONS.map(t => (
+            <button
+              key={t.value}
+              onClick={() => setFilter('category', state.filters.category === t.value ? '' : t.value)}
+              className={clsx(
+                'px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors shrink-0',
+                state.filters.category === t.value ? 'bg-[#006B5B] text-white shadow-2xs' : 'bg-[#F6F7F8] text-[#6B7280] hover:text-[#17191D]'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Contractors Table */}
-      <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-xs overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#FCFCFD]">
+      <div className="bg-white border border-[#E6E9ED] rounded-xl shadow-2xs overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E6E9ED] flex items-center justify-between bg-[#FCFCFD]">
           <div>
-            <h2 className="text-sm font-bold text-[#0F172A]">Contractor Quality Ranking</h2>
-            <p className="text-xs text-[#64748B] mt-0.5">
+            <h2 className="text-sm font-bold text-[#17191D]">Contractor Quality Ranking</h2>
+            <p className="text-xs text-[#6B7280] mt-0.5">
               Ranked with highest quality risks and lowest first-time pass rates prioritized at the top.
             </p>
           </div>
-          <span className="text-[11px] font-mono text-[#94A3B8]">
+          <span className="text-[11px] font-mono text-[#8B93A1]">
             Click row to view cross-project audit and linked defects
           </span>
         </div>
@@ -290,7 +369,7 @@ export function ContractorsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs min-w-[980px]">
             <thead>
-              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B] font-semibold uppercase tracking-wider text-[11px]">
+              <tr className="border-b border-[#E6E9ED] bg-[#F8FAFC] text-[#6B7280] font-semibold uppercase tracking-wider text-[11px]">
                 <SortableTh label="Contractor" sortKey="name" currentSort={sort} onSort={handleSort} className="pl-5 py-3" />
                 <th className="px-3 py-3 font-semibold">Trade / Scope</th>
                 <th className="px-3 py-3 font-semibold">Active Projects</th>
@@ -330,11 +409,11 @@ export function ContractorsPage() {
                       {/* Name & Evidence Badge */}
                       <td className="pl-5 py-3.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-[#0F172A] hover:text-[#315EFB] transition-colors">
+                          <span className="font-semibold text-[#17191D] hover:text-[#006B5B] transition-colors">
                             {m.contractor.name}
                           </span>
                           {m.limitedEvidence && (
-                            <span className="text-[10px] text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded border border-[#E2E8F0]">
+                            <span className="text-[10px] text-[#6B7280] bg-[#F1F5F9] px-1.5 py-0.5 rounded border border-[#E6E9ED]">
                               Limited data (&lt;5 WIRs)
                             </span>
                           )}
@@ -342,8 +421,8 @@ export function ContractorsPage() {
                       </td>
 
                       {/* Trade */}
-                      <td className="px-3 py-3.5 text-[#64748B]">
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] bg-[#F8FAFC] border border-[#E2E8F0] text-[#475569]">
+                      <td className="px-3 py-3.5 text-[#6B7280]">
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] bg-[#F8FAFC] border border-[#E6E9ED] text-[#475569]">
                           {m.contractor.type}
                         </span>
                       </td>
@@ -354,7 +433,7 @@ export function ContractorsPage() {
                           {projectList.map(p => (
                             <span
                               key={p?.id}
-                              className="text-[11px] font-medium text-[#0F172A] bg-white border border-[#CBD5E1] px-1.5 py-0.5 rounded shadow-2xs"
+                              className="text-[11px] font-medium text-[#17191D] bg-white border border-[#CBD5E1] px-1.5 py-0.5 rounded shadow-2xs"
                               title={`${p?.name} (${p?.city})`}
                             >
                               {p?.name}
@@ -364,7 +443,7 @@ export function ContractorsPage() {
                       </td>
 
                       {/* Total WIRs */}
-                      <td className="px-3 py-3.5 font-mono text-[#0F172A] font-medium">
+                      <td className="px-3 py-3.5 font-mono text-[#17191D] font-medium">
                         {m.totalWIRs}
                       </td>
 
@@ -378,7 +457,7 @@ export function ContractorsPage() {
                                 ? 'bg-emerald-50 text-[#16805D] border-emerald-200'
                                 : m.firstTimePassRate >= 60
                                 ? 'bg-amber-50 text-[#B7791F] border-amber-200'
-                                : 'bg-rose-50 text-[#C63F43] border-rose-200'
+                                : 'bg-rose-50 text-[#D92D20] border-rose-200'
                             )}
                           >
                             {m.firstTimePassRate}%
@@ -387,23 +466,23 @@ export function ContractorsPage() {
                       </td>
 
                       {/* Open NCs */}
-                      <td className="px-3 py-3.5 font-mono font-medium text-[#0F172A]">
+                      <td className="px-3 py-3.5 font-mono font-medium text-[#17191D]">
                         {m.openNCs}
                       </td>
 
                       {/* Critical NCs */}
                       <td className="px-3 py-3.5">
                         {m.criticalOpenNCs > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#C63F43] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D92D20] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
                             <AlertTriangle size={11} /> {m.criticalOpenNCs} Critical
                           </span>
                         ) : (
-                          <span className="text-[#94A3B8] font-mono">—</span>
+                          <span className="text-[#8B93A1] font-mono">—</span>
                         )}
                       </td>
 
                       {/* Avg Closure Time */}
-                      <td className="px-3 py-3.5 text-[#64748B] font-mono">
+                      <td className="px-3 py-3.5 text-[#6B7280] font-mono">
                         {m.avgNCClosureTime > 0 ? `${m.avgNCClosureTime}d` : '—'}
                       </td>
 
@@ -414,7 +493,7 @@ export function ContractorsPage() {
                             {m.repeatNCCount} repeat
                           </span>
                         ) : (
-                          <span className="text-[#94A3B8] font-mono">0</span>
+                          <span className="text-[#8B93A1] font-mono">0</span>
                         )}
                       </td>
 
@@ -424,7 +503,7 @@ export function ContractorsPage() {
                       </td>
 
                       {/* Chevron */}
-                      <td className="pr-5 py-3.5 text-right text-[#94A3B8]">
+                      <td className="pr-5 py-3.5 text-right text-[#8B93A1]">
                         <ChevronRight size={14} />
                       </td>
                     </tr>
@@ -459,7 +538,7 @@ export function ContractorsPage() {
 
       {/* Floating Action Toast */}
       {noticeToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#0F172A] text-white px-4 py-3 rounded-lg shadow-xl border border-slate-700 flex items-center gap-3 animate-in fade-in duration-200 text-xs">
+        <div className="fixed bottom-6 right-6 z-50 bg-[#17191D] text-white px-4 py-3 rounded-lg shadow-xl border border-slate-700 flex items-center gap-3 animate-in fade-in duration-200 text-xs">
           <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
           <span>{noticeToast}</span>
           <button
@@ -485,13 +564,13 @@ function TrendIcon({ trend }: { trend: 'improving' | 'declining' | 'stable' }) {
   }
   if (trend === 'declining') {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#C63F43]">
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#D92D20]">
         <TrendingDown size={12} /> Declining
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-[#64748B]">
+    <span className="inline-flex items-center gap-1 text-[11px] text-[#6B7280]">
       <Minus size={12} /> Stable
     </span>
   );
@@ -548,7 +627,7 @@ function ContractorDetailDrawer({
       <div className="space-y-6">
         {/* KPI Strip */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="border border-[#E2E8F0] rounded-xl p-3.5 text-center bg-[#F8FAFC]">
+          <div className="border border-[#E6E9ED] rounded-xl p-3.5 text-center bg-[#F8FAFC]">
             <div
               className={clsx(
                 'text-2xl font-bold font-mono',
@@ -556,30 +635,30 @@ function ContractorDetailDrawer({
                   ? 'text-[#16805D]'
                   : m.firstTimePassRate >= 60
                   ? 'text-[#B7791F]'
-                  : 'text-[#C63F43]'
+                  : 'text-[#D92D20]'
               )}
             >
               {m.firstTimePassRate}%
             </div>
-            <div className="text-[11px] text-[#64748B] font-medium mt-0.5">
+            <div className="text-[11px] text-[#6B7280] font-medium mt-0.5">
               1st-Pass Approval Rate
             </div>
           </div>
 
-          <div className="border border-[#E2E8F0] rounded-xl p-3.5 text-center bg-[#F8FAFC]">
-            <div className={clsx('text-2xl font-bold font-mono', m.openNCs > 3 ? 'text-[#C63F43]' : 'text-[#0F172A]')}>
+          <div className="border border-[#E6E9ED] rounded-xl p-3.5 text-center bg-[#F8FAFC]">
+            <div className={clsx('text-2xl font-bold font-mono', m.openNCs > 3 ? 'text-[#D92D20]' : 'text-[#17191D]')}>
               {m.openNCs}
             </div>
-            <div className="text-[11px] text-[#64748B] font-medium mt-0.5">
+            <div className="text-[11px] text-[#6B7280] font-medium mt-0.5">
               Open Quality Findings
             </div>
           </div>
 
-          <div className="border border-[#E2E8F0] rounded-xl p-3.5 text-center bg-[#F8FAFC]">
-            <div className="text-2xl font-bold font-mono text-[#0F172A]">
+          <div className="border border-[#E6E9ED] rounded-xl p-3.5 text-center bg-[#F8FAFC]">
+            <div className="text-2xl font-bold font-mono text-[#17191D]">
               {m.totalWIRs}
             </div>
-            <div className="text-[11px] text-[#64748B] font-medium mt-0.5">
+            <div className="text-[11px] text-[#6B7280] font-medium mt-0.5">
               Total Inspected WIRs
             </div>
           </div>
@@ -587,7 +666,7 @@ function ContractorDetailDrawer({
 
         {/* Portfolio Summary Metadata */}
         <DrawerSection title="Portfolio Quality Profile">
-          <div className="border border-[#E2E8F0] rounded-xl overflow-hidden divide-y divide-[#F1F5F9] bg-white">
+          <div className="border border-[#E6E9ED] rounded-xl overflow-hidden divide-y divide-[#F1F5F9] bg-white">
             <FieldRow label="Contractor Trade" value={m.contractor.type} />
             <FieldRow label="Active Footprint" value={projectNames.join(', ')} />
             <FieldRow label="Avg NC Resolution Time" value={m.avgNCClosureTime > 0 ? `${m.avgNCClosureTime} calendar days` : '—'} />
@@ -627,7 +706,7 @@ function ContractorDetailDrawer({
                 return (
                   <div
                     key={pid}
-                    className="flex items-center justify-between p-3 border border-[#E2E8F0] rounded-xl bg-[#F8FAFC]"
+                    className="flex items-center justify-between p-3 border border-[#E6E9ED] rounded-xl bg-[#F8FAFC]"
                   >
                     <div className="flex items-center gap-2.5">
                       {proj?.image && (
@@ -638,8 +717,8 @@ function ContractorDetailDrawer({
                         />
                       )}
                       <div>
-                        <span className="text-xs font-bold text-[#0F172A]">{proj?.name}</span>
-                        <span className="text-[11px] text-[#64748B] ml-1.5 font-mono">({proj?.city})</span>
+                        <span className="text-xs font-bold text-[#17191D]">{proj?.name}</span>
+                        <span className="text-[11px] text-[#6B7280] ml-1.5 font-mono">({proj?.city})</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 text-xs">
@@ -650,16 +729,16 @@ function ContractorDetailDrawer({
                             ? 'bg-emerald-50 text-[#16805D] border-emerald-200'
                             : passRate >= 60
                             ? 'bg-amber-50 text-[#B7791F] border-amber-200'
-                            : 'bg-rose-50 text-[#C63F43] border-rose-200'
+                            : 'bg-rose-50 text-[#D92D20] border-rose-200'
                         )}
                       >
                         {passRate}% pass
                       </span>
-                      <span className="text-[#64748B] font-mono">{projWIRs.length} WIRs</span>
+                      <span className="text-[#6B7280] font-mono">{projWIRs.length} WIRs</span>
                       <span
                         className={clsx(
                           'font-semibold text-[11px]',
-                          openProjNCs > 0 ? 'text-[#C63F43]' : 'text-[#16805D]'
+                          openProjNCs > 0 ? 'text-[#D92D20]' : 'text-[#16805D]'
                         )}
                       >
                         {openProjNCs} open NCs
@@ -701,11 +780,11 @@ function ContractorDetailDrawer({
                 return (
                   <div
                     key={nc.id}
-                    className="border border-[#E2E8F0] rounded-xl p-3 bg-white hover:border-[#CBD5E1] transition-colors"
+                    className="border border-[#E6E9ED] rounded-xl p-3 bg-white hover:border-[#CBD5E1] transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-mono font-bold text-[#315EFB]">{nc.id}</span>
+                        <span className="text-xs font-mono font-bold text-[#006B5B]">{nc.id}</span>
                         <SeverityBadge severity={nc.severity} />
                         <StatusBadge status={nc.status} />
                         {nc.isRepeat && (
@@ -716,20 +795,20 @@ function ContractorDetailDrawer({
                       </div>
                       <button
                         onClick={() => onViewNC(nc.id)}
-                        className="text-xs font-semibold text-[#315EFB] hover:underline flex items-center gap-1"
+                        className="text-xs font-semibold text-[#006B5B] hover:underline flex items-center gap-1"
                       >
                         Inspect NC <ExternalLink size={11} />
                       </button>
                     </div>
-                    <p className="text-xs text-[#0F172A] font-medium mt-2 leading-relaxed">
+                    <p className="text-xs text-[#17191D] font-medium mt-2 leading-relaxed">
                       {nc.finding}
                     </p>
-                    <div className="flex items-center gap-2 text-[11px] text-[#64748B] mt-2 font-mono">
+                    <div className="flex items-center gap-2 text-[11px] text-[#6B7280] mt-2 font-mono">
                       <span>{proj?.name}</span>
                       <span>·</span>
                       <span>{nc.tower}</span>
                       <span>·</span>
-                      <span className={clsx(nc.age > 7 && 'text-[#C63F43] font-bold')}>
+                      <span className={clsx(nc.age > 7 && 'text-[#D92D20] font-bold')}>
                         {nc.age} days open
                       </span>
                     </div>
@@ -742,10 +821,10 @@ function ContractorDetailDrawer({
 
         {/* Recent WIR Inspection Register */}
         <DrawerSection title="Recent Work Inspection Requests (WIR)">
-          <div className="border border-[#E2E8F0] rounded-xl overflow-hidden bg-white">
+          <div className="border border-[#E6E9ED] rounded-xl overflow-hidden bg-white">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] font-semibold">
+                <tr className="bg-[#F8FAFC] border-b border-[#E6E9ED] text-[#6B7280] font-semibold">
                   <th className="px-3 py-2 font-medium">WIR ID</th>
                   <th className="px-3 py-2 font-medium">Project</th>
                   <th className="px-3 py-2 font-medium">Activity</th>
@@ -762,13 +841,13 @@ function ContractorDetailDrawer({
                       key={wir.id}
                       className="hover:bg-[#F8FAFC] transition-colors"
                     >
-                      <td className="px-3 py-2 font-mono font-bold text-[#315EFB]">
+                      <td className="px-3 py-2 font-mono font-bold text-[#006B5B]">
                         {wir.id}
                       </td>
-                      <td className="px-3 py-2 text-[#64748B] truncate max-w-[100px]">
+                      <td className="px-3 py-2 text-[#6B7280] truncate max-w-[100px]">
                         {proj?.name}
                       </td>
-                      <td className="px-3 py-2 text-[#0F172A] max-w-[130px] truncate">
+                      <td className="px-3 py-2 text-[#17191D] max-w-[130px] truncate">
                         {wir.activity}
                       </td>
                       <td className="px-3 py-2">
@@ -779,16 +858,16 @@ function ContractorDetailDrawer({
                           <span className="text-[11px] font-bold text-[#16805D]">Pass</span>
                         )}
                         {wir.firstPassResult === 'Fail' && (
-                          <span className="text-[11px] font-bold text-[#C63F43]">Fail</span>
+                          <span className="text-[11px] font-bold text-[#D92D20]">Fail</span>
                         )}
                         {wir.firstPassResult === 'Pending' && (
-                          <span className="text-[11px] text-[#94A3B8]">—</span>
+                          <span className="text-[11px] text-[#8B93A1]">—</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <button
                           onClick={() => onViewWIR(wir.id)}
-                          className="text-[11px] text-[#315EFB] hover:underline font-medium"
+                          className="text-[11px] text-[#006B5B] hover:underline font-medium"
                         >
                           View
                         </button>
@@ -806,14 +885,14 @@ function ContractorDetailDrawer({
           <div className="flex items-center gap-3">
             <button
               onClick={handleIssueNotice}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-[#C63F43] hover:bg-rose-100 text-xs font-semibold transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-[#D92D20] hover:bg-rose-100 text-xs font-semibold transition-colors"
             >
               <FileWarning size={13} />
               Issue Quality Warning Notice
             </button>
             <button
               onClick={handleExportScorecard}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] hover:bg-slate-100 text-xs font-medium transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E6E9ED] text-[#17191D] hover:bg-slate-100 text-xs font-medium transition-colors"
             >
               <Download size={13} />
               Download Vendor Scorecard

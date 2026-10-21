@@ -35,8 +35,14 @@ export function ActivityDetailDrawer({ activityId, onClose }: ActivityDetailDraw
   const isDelayed = activity.status === 'Delayed' || activity.status === 'Blocked';
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-xl bg-white h-full shadow-2xl border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden"
+      >
         {/* Drawer Header */}
         <div className="p-6 border-b border-slate-200 bg-slate-50/60 flex items-start justify-between">
           <div>
@@ -190,6 +196,7 @@ export function ActivityDetailDrawer({ activityId, onClose }: ActivityDetailDraw
                 </div>
                 <button
                   onClick={() => {
+                    onClose();
                     setTab('wir');
                     selectWIR(linkedWIR.id);
                   }}
@@ -214,6 +221,7 @@ export function ActivityDetailDrawer({ activityId, onClose }: ActivityDetailDraw
                 </div>
                 <button
                   onClick={() => {
+                    onClose();
                     setTab('nc');
                     selectNC(linkedNC.id);
                   }}

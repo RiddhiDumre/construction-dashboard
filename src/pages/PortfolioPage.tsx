@@ -7,33 +7,44 @@
 // ============================================================
 
 import React, { useState, useMemo } from 'react';
-import { ChevronRight, ArrowUpRight, ShieldAlert, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
+import { ChevronRight, ArrowUpRight, ShieldAlert, CheckCircle2, AlertTriangle, Layers, Award, MapPin, RotateCcw, Calendar, Building2, ChevronDown } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import clsx from 'clsx';
 import { useApp } from '../store/appStore';
 import {
   getAllProjectMetrics,
   getOverviewPortfolioKPIs,
   getCXOCommercialInventory,
+  isProjectInCity,
 } from '../data/calculations';
 import { PROJECTS, TOWERS_DATA, FLOORS_DATA, NC_RECORDS, AUDIT_RECORDS } from '../data/seedData';
 import { ProjectDetailDrawer } from '../components/ProjectDetailDrawer';
 
 // ── Design Tokens ──────────────────────────────────────────
 const C = {
-  teal:   '#00594F',
+  teal:   '#006B5B',
   tealLt: '#0D9488',
-  red:    '#DC2626',
-  redTx:  '#C63F43',
-  amber:  '#D97706',
+  red:    '#D92D20',
+  redTx:  '#D92D20',
+  amber:  '#B7791F',
   ambTx:  '#B7791F',
   text:   '#17191D',
-  muted:  '#737B88',
-  pale:   '#F1F5F9',
-  line:   '#E5E7EB',
-  green:  '#16805D',
+  muted:  '#6B7280',
+  pale:   '#F6F7F8',
+  line:   '#E6E9ED',
+  green:  '#18845B',
 };
 
-const CITIES = ['All Locations', 'Mumbai', 'Pune', 'Bengaluru', 'Hyderabad', 'Gurugram'];
+const CITIES = ['All Locations', 'Mumbai', 'Thane', 'Navi Mumbai', 'Pune', 'Bengaluru', 'Gurugram', 'Hyderabad'];
+
+const AUDIT_OVERVIEW_SERIES = [
+  { month: 'Apr', expected: 82, actual: 80 },
+  { month: 'May', expected: 83, actual: 82 },
+  { month: 'Jun', expected: 85, actual: 85 },
+  { month: 'Jul', expected: 86, actual: 78 },
+  { month: 'Aug', expected: 87, actual: 74 },
+  { month: 'Sep', expected: 88, actual: 72 },
+];
 
 interface TowerElev {
   id: string;
@@ -62,8 +73,9 @@ interface ProjectClusterData {
 }
 
 export function PortfolioPage() {
-  const { state, setTab, selectProject, setFilter } = useApp();
+  const { state, setTab, selectProject, selectNC, setFilter } = useApp();
   const [selectedCity, setSelectedCity] = useState('All Locations');
+  const [selectedProjectId, setSelectedProjectId] = useState('ALL');
 
   // Tooltip state for slab hover
   const [hoveredSlab, setHoveredSlab] = useState<{
@@ -86,6 +98,11 @@ export function PortfolioPage() {
     [state.weights, state.wirs, state.ncs]
   );
 
+  const availableProjects = useMemo(() => {
+    if (selectedCity === 'All Locations') return PROJECTS;
+    return PROJECTS.filter(p => isProjectInCity(p.city, selectedCity));
+  }, [selectedCity]);
+
   const kpis = useMemo(
     () => getOverviewPortfolioKPIs(selectedCity, state.weights, state.wirs, state.ncs),
     [selectedCity, state.weights, state.wirs, state.ncs]
@@ -100,11 +117,10 @@ export function PortfolioPage() {
   const projectClusters = useMemo<ProjectClusterData[]>(() => {
     let projs = PROJECTS;
     if (selectedCity !== 'All Locations') {
-      if (selectedCity.toLowerCase() === 'mumbai') {
-        projs = projs.filter(p => ['Mumbai', 'Navi Mumbai', 'Thane'].includes(p.city));
-      } else {
-        projs = projs.filter(p => p.city.toLowerCase() === selectedCity.toLowerCase());
-      }
+      projs = projs.filter(p => isProjectInCity(p.city, selectedCity));
+    }
+    if (selectedProjectId !== 'ALL') {
+      projs = projs.filter(p => p.id === selectedProjectId);
     }
 
     return projs.map(proj => {
@@ -140,7 +156,7 @@ export function PortfolioPage() {
         }),
       };
     });
-  }, [selectedCity, allMetrics, state.ncs]);
+  }, [selectedCity, selectedProjectId, allMetrics, state.ncs]);
 
   // Health counts
   const healthStats = useMemo(() => {
@@ -154,60 +170,125 @@ export function PortfolioPage() {
   return (
     <div className="space-y-4 pb-6">
       {/* ============================================================
-          TOP FILTER & CONTEXT STRIP
+          PAGE HEADER & 2 SIDE-BY-SIDE DROPDOWNS: Location & Project
+          Exactly like NC & Inspection throughout the app
           ============================================================ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E5E7EB]">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-          {CITIES.map(city => {
-            const active = selectedCity === city;
-            return (
-              <button
-                key={city}
-                onClick={() => {
-                  setSelectedCity(city);
-                  setFilter('city', city === 'All Locations' ? '' : city);
-                }}
-                className={clsx(
-                  'px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all',
-                  active
-                    ? 'bg-[#17191D] text-white shadow-xs'
-                    : 'text-[#737B88] hover:text-[#17191D] hover:bg-white'
-                )}
-              >
-                {city}
-              </button>
-            );
-          })}
+      <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#F1F5F9]">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-bold text-[#17191D] uppercase tracking-wider">
+              Portfolio Overview & Executive Assurance
+            </h1>
+            <span className="text-xs text-[#6B7280]">
+              · {selectedCity} · {selectedProjectId === 'ALL' ? `All ${availableProjects.length} Projects` : PROJECTS.find(p => p.id === selectedProjectId)?.name}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs text-[#6B7280] font-medium">
+            <span className="text-[11px] text-[#8B93A1] tabular-nums">
+              Showing <strong className="text-[#17191D] font-semibold">{projectClusters.length}</strong> of {PROJECTS.length} active projects
+            </span>
+            <div className="h-4 w-px bg-[#E6E9ED]" />
+            <div className="flex items-center gap-1 text-[#17191D] font-semibold">
+              <Calendar size={13} className="text-[#006B5B]" />
+              <span>Q3 FY25</span>
+            </div>
+            {(selectedCity !== 'All Locations' || selectedProjectId !== 'ALL') && (
+              <>
+                <div className="h-4 w-px bg-[#E6E9ED]" />
+                <button
+                  onClick={() => {
+                    setSelectedCity('All Locations');
+                    setSelectedProjectId('ALL');
+                    setFilter('city', '');
+                  }}
+                  className="flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#17191D] hover:bg-[#F1F3F5] px-2 py-1 rounded transition-colors"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-[#737B88] font-medium">
-          <span className="tabular-nums font-semibold text-[#17191D]">{projectClusters.length}</span> Active Projects
-          <span>·</span>
-          <span>Reporting: <strong className="text-[#17191D]">Q3 FY25</strong></span>
+        {/* 2 SIDE-BY-SIDE DROPDOWNS: Location & Project */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* 1. City Dropdown */}
+          <div className="relative">
+            <label className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block mb-1">
+              Location
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#1E3A8A]">
+                <MapPin size={16} />
+              </div>
+              <select
+                value={selectedCity}
+                onChange={(e) => {
+                  const newCity = e.target.value;
+                  setSelectedCity(newCity);
+                  setFilter('city', newCity === 'All Locations' ? '' : newCity);
+                  setSelectedProjectId('ALL');
+                }}
+                className="h-10 w-full pl-9 pr-8 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#17191D] focus:outline-none focus:border-[#1E3A8A] shadow-2xs appearance-none cursor-pointer"
+              >
+                {CITIES.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+            </div>
+          </div>
+
+          {/* 2. Project Dropdown */}
+          <div className="relative">
+            <label className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider block mb-1">
+              Project
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#1E3A8A]">
+                <Building2 size={16} />
+              </div>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="h-10 w-full pl-9 pr-8 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#17191D] focus:outline-none focus:border-[#1E3A8A] shadow-2xs appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Projects ({availableProjects.length})</option>
+                {availableProjects.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.city})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ============================================================
-          TOP KPI ROW: BOLD NUMBERS, RESTORED HIERARCHY
+          TOP KPI ROW: CLEAN TYPOGRAPHY & RESTRAINED CARDS
           ============================================================ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* KPI 1: Construction Progress */}
-        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4.5 shadow-2xs flex flex-col justify-between">
+        <div className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs flex flex-col justify-between overflow-hidden">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#737B88]">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
               Portfolio Construction
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-4xl sm:text-5xl font-black text-[#17191D] tracking-tight tabular-nums">
+            <div className="mt-1 flex items-baseline gap-1">
+              <span className="text-3xl font-extrabold text-[#17191D] tracking-tight tabular-nums">
                 {kpis.overallProgress}
               </span>
-              <span className="text-xl font-bold text-[#737B88]">%</span>
+              <span className="text-sm font-bold text-[#6B7280]">%</span>
             </div>
-            <div className="text-xs text-[#737B88] mt-1 flex items-center gap-1.5 font-medium">
+            <div className="text-xs text-[#6B7280] mt-1 flex items-center gap-1.5 font-medium">
               <span>{kpis.overallTargetProgress}% planned</span>
               <span>·</span>
               <span className={clsx(
-                kpis.progressVariance < 0 ? 'text-[#B7791F] font-bold' : 'text-[#16805D] font-bold'
+                kpis.progressVariance < 0 ? 'text-[#B7791F] font-bold' : 'text-[#18845B] font-bold'
               )}>
                 {kpis.progressVariance < 0
                   ? `${Math.abs(kpis.progressVariance)}% behind target`
@@ -215,9 +296,10 @@ export function PortfolioPage() {
               </span>
             </div>
           </div>
-          <div className="w-full h-1.5 bg-[#F1F5F9] rounded-full mt-3 overflow-hidden">
+          {/* Progress bar */}
+          <div className="w-full h-1.5 bg-[#F6F7F8] rounded-full mt-3 overflow-hidden border border-[#E6E9ED]">
             <div
-              className="h-full bg-[#00594F] rounded-full transition-all duration-500"
+              className="h-full bg-[#006B5B] rounded-full transition-all duration-500"
               style={{ width: `${kpis.overallProgress}%` }}
             />
           </div>
@@ -226,145 +308,134 @@ export function PortfolioPage() {
         {/* KPI 2: Commercial Units Sold */}
         <div
           onClick={() => setTab('sales')}
-          className="bg-white border border-[#E5E7EB] rounded-xl p-4.5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
+          className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group overflow-hidden"
         >
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#737B88]">
+            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
               <span>Inventory Sold & Booked</span>
-              <ArrowUpRight size={13} className="text-[#00594F] opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowUpRight size={13} className="text-[#006B5B] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1.5">
-              <span className="text-4xl sm:text-5xl font-black text-[#17191D] tracking-tight tabular-nums">
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-3xl font-extrabold text-[#17191D] tracking-tight tabular-nums">
                 {commercial.soldUnits.toLocaleString('en-IN')}
               </span>
-              <span className="text-sm font-semibold text-[#737B88]">
+              <span className="text-xs font-semibold text-[#6B7280]">
                 / {commercial.totalUnits.toLocaleString('en-IN')} units
               </span>
             </div>
-            <div className="text-xs text-[#737B88] mt-1 font-medium">
-              <span className="text-[#00594F] font-bold">{commercial.soldPercent}% booked</span>
+            <div className="text-xs text-[#6B7280] mt-1 font-medium">
+              <span className="text-[#006B5B] font-bold">{commercial.soldPercent}% booked</span>
               <span> · ₹{commercial.bookedValueCr.toLocaleString('en-IN')} Cr realized</span>
             </div>
           </div>
-          {/* Minimalist 20-block absorption strip */}
-          <div className="mt-3 flex items-center gap-1">
-            {Array.from({ length: 20 }).map((_, i) => {
-              const filled = i < Math.round((commercial.soldPercent / 100) * 20);
-              return (
-                <div
-                  key={i}
-                  className={clsx(
-                    'flex-1 h-1.5 rounded-full transition-colors',
-                    filled ? 'bg-[#00594F]' : 'bg-[#E5E7EB]'
-                  )}
-                  title={`${commercial.soldPercent}% Sold`}
-                />
-              );
-            })}
+          <div className="mt-3 pt-2 border-t border-[#F6F7F8] flex items-center justify-between text-[11px] text-[#6B7280] font-medium">
+            <span>{commercial.leftUnits} units remaining</span>
+            <span className="text-[#006B5B] font-bold">View Inventory →</span>
           </div>
         </div>
 
-        {/* KPI 3: Quality Score */}
+        {/* KPI 3: Audit Assurance Score */}
         <div
           onClick={() => setTab('quality')}
-          className="bg-white border border-[#E5E7EB] rounded-xl p-4.5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
+          className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group overflow-hidden"
         >
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#737B88]">
-              <span>Quality Assurance Index</span>
-              <ArrowUpRight size={13} className="text-[#00594F] opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
+              <span>Audit Assurance Score</span>
+              <ArrowUpRight size={13} className="text-[#006B5B] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
+            <div className="mt-1 flex items-baseline gap-1">
               <span className={clsx(
-                'text-4xl sm:text-5xl font-black tracking-tight tabular-nums',
-                kpis.portfolioQualityScore >= 80 ? 'text-[#16805D]' : kpis.portfolioQualityScore >= 60 ? 'text-[#B7791F]' : 'text-[#C63F43]'
+                'text-3xl font-extrabold tracking-tight tabular-nums',
+                kpis.portfolioQualityScore >= 80 ? 'text-[#18845B]' : kpis.portfolioQualityScore >= 60 ? 'text-[#B7791F]' : 'text-[#D92D20]'
               )}>
                 {kpis.portfolioQualityScore}
               </span>
-              <span className="text-lg font-bold text-[#737B88]">/100</span>
+              <span className="text-xs font-bold text-[#6B7280]">/100</span>
             </div>
-            <div className="text-xs text-[#737B88] mt-1 flex items-center gap-1.5 font-medium">
+            <div className="text-xs text-[#6B7280] mt-1 flex items-center gap-1.5 font-medium">
               <span className={clsx(
                 'w-2 h-2 rounded-full',
-                kpis.portfolioQualityScore >= 80 ? 'bg-[#16805D]' : kpis.portfolioQualityScore >= 60 ? 'bg-[#D97706]' : 'bg-[#DC2626]'
+                kpis.portfolioQualityScore >= 80 ? 'bg-[#18845B]' : kpis.portfolioQualityScore >= 60 ? 'bg-[#B7791F]' : 'bg-[#D92D20]'
               )} />
               <span className="text-[#17191D] font-bold">
-                {kpis.portfolioQualityScore >= 80 ? 'Optimal' : kpis.portfolioQualityScore >= 60 ? 'Caution' : 'Critical'}
+                {kpis.portfolioQualityScore >= 80 ? 'Optimal (IS 456 Compliant)' : kpis.portfolioQualityScore >= 60 ? 'Caution' : 'Critical'}
               </span>
-              <span>· {kpis.portfolioWIRPassRate}% 1st-pass WIR</span>
             </div>
           </div>
-          <div className="text-[11px] text-[#737B88] mt-3 pt-2 border-t border-[#F1F5F9] flex items-center justify-between font-medium">
-            <span>Audit Score: <strong>76%</strong></span>
-            <span>NC Health: <strong>71/100</strong></span>
+          <div className="mt-3 pt-2 border-t border-[#F6F7F8] flex items-center justify-between text-[11px] text-[#6B7280] font-medium">
+            <span>{kpis.portfolioWIRPassRate}% 1st-pass WIR rate</span>
+            <span className="text-[#006B5B] font-bold">Audit Trajectory →</span>
           </div>
         </div>
 
         {/* KPI 4: Critical Holds & Stop-Works */}
         <div
-          onClick={() => setTab('nc')}
-          className="bg-white border border-[#E5E7EB] rounded-xl p-4.5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
+          onClick={() => {
+            setTab('nc');
+            selectNC('NC-0001');
+          }}
+          className="bg-white border border-[#E6E9ED] rounded-xl p-4 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group overflow-hidden"
         >
           <div>
-            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-[#737B88]">
+            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]">
               <span>Active Defect Holds</span>
-              <ArrowUpRight size={13} className="text-[#DC2626] opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowUpRight size={13} className="text-[#D92D20] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
+            <div className="mt-1 flex items-baseline gap-1">
               <span className={clsx(
-                'text-4xl sm:text-5xl font-black tracking-tight tabular-nums',
-                kpis.criticalNCs > 0 ? 'text-[#C63F43]' : 'text-[#17191D]'
+                'text-3xl font-extrabold tracking-tight tabular-nums',
+                kpis.criticalNCs > 0 ? 'text-[#D92D20]' : 'text-[#17191D]'
               )}>
                 {kpis.criticalNCs}
               </span>
-              <span className="text-xs font-bold text-[#737B88]">Critical</span>
+              <span className="text-xs font-bold text-[#6B7280]">Active Stop-Work</span>
             </div>
-            <div className="text-xs text-[#737B88] mt-1 flex items-center gap-1.5 font-medium">
+            <div className="text-xs text-[#6B7280] mt-1 flex items-center gap-1.5 font-medium">
               <span className={clsx(
                 'w-2 h-2 rounded-full',
-                kpis.criticalNCs > 0 ? 'bg-[#DC2626]' : 'bg-[#16805D]'
+                kpis.criticalNCs > 0 ? 'bg-[#D92D20]' : 'bg-[#18845B]'
               )} />
-              <span className="text-[#17191D] font-bold">
-                {kpis.criticalNCs > 0 ? 'Riverstone T1 · Stop-work' : 'No active stop-works'}
+              <span className="text-[#17191D] font-bold truncate">
+                {kpis.criticalNCs > 0 ? 'Riverstone T1 · F05 Hold' : 'No active stop-works'}
               </span>
             </div>
           </div>
-          <div className="text-[11px] text-[#737B88] mt-3 pt-2 border-t border-[#F1F5F9] flex items-center justify-between font-medium">
+          <div className="text-[11px] text-[#6B7280] mt-3 pt-2 border-t border-[#F6F7F8] flex items-center justify-between font-medium">
             <span>{kpis.openNCs} total open findings</span>
-            <span>{kpis.overdueWIRs} overdue WIRs</span>
+            <span className="text-[#D92D20] font-bold">Inspect NC-0001 →</span>
           </div>
         </div>
       </div>
 
       {/* ============================================================
           MAIN BENTO: WIP SKYLINE (LEFT 65%) + AUDIT ASSURANCE (RIGHT 35%)
-          Dominates the screen, high fidelity, proportionate towers
           ============================================================ */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* ── LEFT: WIP CONSTRUCTION SKYLINE (8 cols) ── */}
-        <div className="lg:col-span-8 bg-white border border-[#E5E7EB] rounded-xl flex flex-col justify-between shadow-2xs overflow-hidden">
+        <div className="lg:col-span-8 bg-white border border-[#E6E9ED] rounded-xl flex flex-col justify-between shadow-2xs overflow-hidden">
           {/* Header */}
-          <div className="px-5 py-3.5 border-b border-[#F1F5F9] flex items-center justify-between">
+          <div className="px-5 py-3.5 border-b border-[#E6E9ED] flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Layers size={16} className="text-[#00594F]" />
+              <Layers size={16} className="text-[#006B5B]" />
               <h2 className="text-sm font-bold text-[#17191D] tracking-tight">
                 Work In Progress (WIP) — Slab-Level Skyline
               </h2>
-              <span className="text-xs text-[#737B88] hidden sm:inline">
+              <span className="text-xs text-[#6B7280] hidden sm:inline">
                 · Hover any floor slab for inspection status
               </span>
             </div>
 
             <button
               onClick={() => setTab('wip')}
-              className="text-xs font-bold text-[#00594F] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-[#006B5B] hover:underline flex items-center gap-1"
             >
               Open Full WIP Page <ChevronRight size={13} />
             </button>
           </div>
 
           {/* Architectural Canvas: Proportionate Towers Grouped by Project */}
-          <div className="relative p-5 bg-[#FAFBFB] flex-1 flex items-end justify-start gap-6 overflow-x-auto min-h-[300px]">
+          <div className="relative p-5 bg-[#F6F7F8] flex-1 flex items-end justify-start gap-6 overflow-x-auto min-h-[300px]">
             {projectClusters.map(project => {
               const isCrit = project.healthCategory === 'Critical';
               const isRisk = project.healthCategory === 'At Risk';
@@ -375,10 +446,10 @@ export function PortfolioPage() {
                   className={clsx(
                     'flex flex-col items-center p-3 rounded-xl border transition-all',
                     isCrit
-                      ? 'border-red-200/80 bg-red-50/20'
+                      ? 'border-red-200 bg-red-50/40'
                       : isRisk
-                      ? 'border-amber-200/80 bg-amber-50/20'
-                      : 'border-slate-200/60 bg-white/70'
+                      ? 'border-amber-200 bg-amber-50/40'
+                      : 'border-[#E6E9ED] bg-white'
                   )}
                   style={{ minWidth: project.towers.length * 64 + 24 }}
                 >
@@ -407,37 +478,33 @@ export function PortfolioPage() {
                           {/* Tower Top Progress % */}
                           <span className={clsx(
                             'text-[10px] font-bold tabular-nums mb-1',
-                            tower.status === 'Delayed' ? 'text-[#C63F43]' : 'text-[#00594F]'
+                            tower.status === 'Delayed' ? 'text-[#D92D20]' : 'text-[#006B5B]'
                           )}>
                             {tower.actualProgress}%
                           </span>
 
                           {/* Tower Slabs Stack */}
                           <div
-                            className="w-full flex flex-col-reverse relative group-hover:scale-[1.02] transition-transform"
+                            className="w-full flex flex-col relative group-hover:scale-[1.02] transition-transform"
                             style={{ gap: `${gap}px` }}
                           >
-                            {/* Rooftop Penthouse Cap */}
+                            {/* Rooftop Penthouse Cap (Neutral slate architectural cap) */}
                             <div
-                              className="w-full h-1.5 rounded-t-sm"
-                              style={{
-                                backgroundColor: tower.status === 'Delayed' ? '#DC2626' : '#17191D',
-                              }}
+                              className="w-full h-1.5 rounded-t-sm bg-slate-800"
                             />
 
-                            {/* Render Each Floor Slab */}
-                            {Array.from({ length: total }).map((_, fIdx) => {
-                              const floorNum = fIdx + 1;
+                            {/* Render Each Floor Slab - From Top Floor down to Ground Floor */}
+                            {Array.from({ length: total }, (_, fIdx) => total - fIdx).map(floorNum => {
                               const isCompleted = floorNum <= completed;
                               const isActive = floorNum === active;
                               const isCriticalFloor = critical === floorNum;
                               const isDelayedFloor = tower.status === 'Delayed' && floorNum > completed && floorNum <= completed + 2;
 
                               let bg = '#E2E8F0';
-                              if (isCriticalFloor) bg = '#DC2626';
-                              else if (isCompleted) bg = '#00594F';
-                              else if (isActive) bg = '#0D9488';
-                              else if (isDelayedFloor) bg = '#D97706';
+                              if (isCriticalFloor) bg = '#D92D20';
+                              else if (isCompleted) bg = '#006B5B';
+                              else if (isActive) bg = '#2563EB'; // Vibrant Blue for Active Pouring (clearly distinct from completed teal)
+                              else if (isDelayedFloor) bg = '#B7791F';
 
                               return (
                                 <div
@@ -474,14 +541,14 @@ export function PortfolioPage() {
                             })}
 
                             {/* Foundation Beam */}
-                            <div className="w-full h-1 bg-slate-400 rounded-b-sm" />
+                            <div className="w-full h-1 bg-slate-300 rounded-b-sm" />
                           </div>
 
                           {/* Tower Name */}
                           <span className="text-[10px] font-semibold text-[#17191D] mt-1.5 truncate max-w-full">
                             {tower.name}
                           </span>
-                          <span className="text-[9px] text-[#737B88] tabular-nums">
+                          <span className="text-[9px] text-[#6B7280] tabular-nums">
                             {completed}/{total} fl
                           </span>
                         </div>
@@ -490,16 +557,16 @@ export function PortfolioPage() {
                   </div>
 
                   {/* Project Info Footer */}
-                  <div className="mt-2.5 pt-2 border-t border-slate-200/60 w-full text-center">
+                  <div className="mt-2.5 pt-2 border-t border-[#E6E9ED] w-full text-center">
                     <span className="text-xs font-bold text-[#17191D] block truncate">
                       {project.name}
                     </span>
-                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#737B88] mt-0.5">
+                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B7280] mt-0.5">
                       <span>{project.city}</span>
                       <span>·</span>
-                      <span className="font-semibold">{project.overallProgress}%</span>
+                      <span className="font-semibold text-[#17191D]">{project.overallProgress}%</span>
                       {isCrit && (
-                        <span className="text-[#C63F43] font-bold">· ⚠ Hold</span>
+                        <span className="text-[#D92D20] font-bold">· ⚠ Hold</span>
                       )}
                     </div>
                   </div>
@@ -509,27 +576,27 @@ export function PortfolioPage() {
           </div>
 
           {/* Canvas Legend */}
-          <div className="px-5 py-2.5 border-t border-[#F1F5F9] flex flex-wrap items-center justify-between text-xs text-[#737B88] gap-2">
+          <div className="px-5 py-2.5 border-t border-[#E6E9ED] flex flex-wrap items-center justify-between text-xs text-[#6B7280] gap-2">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#00594F]" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#006B5B]" />
                 Completed & Passed
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#0D9488]" />
-                In Progress (Active)
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#2563EB]" />
+                In Progress (Active Pouring)
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#D97706]" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#B7791F]" />
                 Delayed Schedule
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#DC2626]" />
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#D92D20]" />
                 Critical Defect Hold
               </span>
             </div>
 
-            <span className="text-[11px] text-[#00594F] font-semibold">
+            <span className="text-[11px] text-[#006B5B] font-semibold">
               Click any project tower to inspect floor activities
             </span>
           </div>
@@ -538,96 +605,150 @@ export function PortfolioPage() {
         {/* ── RIGHT: AUDIT & QUALITY ASSURANCE CENTER (4 cols) ── */}
         <div
           onClick={() => setTab('quality')}
-          className="lg:col-span-4 bg-white border border-[#E5E7EB] rounded-xl p-5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
+          className="lg:col-span-4 bg-white border border-[#E6E9ED] rounded-xl p-5 shadow-2xs flex flex-col justify-between cursor-pointer hover:border-slate-300 transition-colors group"
         >
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E6E9ED]">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-[#16805D]" />
+                <Award size={16} className="text-[#006B5B]" />
                 <h2 className="text-sm font-bold text-[#17191D] tracking-tight">
-                  Audit Assurance Health
+                  Audit Trajectory & Conformance
                 </h2>
               </div>
-              <span className="text-xs font-bold text-[#00594F] group-hover:underline flex items-center gap-0.5">
-                Full Register <ChevronRight size={13} />
+              <span className="text-xs font-bold text-[#006B5B] group-hover:underline flex items-center gap-0.5">
+                Audit Register <ChevronRight size={13} />
               </span>
             </div>
 
-            {/* Quality Donut Ring & Key Metrics */}
-            <div className="py-5 flex flex-col items-center">
-              <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle
-                    cx="50" cy="50" r="40"
-                    fill="none"
-                    stroke="#F1F5F9"
-                    strokeWidth="8"
-                  />
-                  <circle
-                    cx="50" cy="50" r="40"
-                    fill="none"
-                    stroke={kpis.portfolioQualityScore >= 80 ? '#16805D' : kpis.portfolioQualityScore >= 60 ? '#D97706' : '#DC2626'}
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(kpis.portfolioQualityScore / 100) * 251.2} 251.2`}
-                    className="transition-all duration-700"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            {/* Quality Score Header & Dual Legend */}
+            <div className="pt-3 pb-1 flex items-baseline justify-between">
+              <div>
+                <div className="flex items-baseline gap-1.5">
                   <span className="text-3xl font-black text-[#17191D] tabular-nums tracking-tight">
                     {kpis.portfolioQualityScore}
                   </span>
-                  <span className="text-[10px] font-bold text-[#737B88] uppercase tracking-wider">
-                    Score / 100
-                  </span>
+                  <span className="text-xs text-[#6B7280] font-bold">/ 100</span>
                 </div>
+                <span className="text-[11px] text-[#6B7280] font-medium block">
+                  {kpis.portfolioQualityScore >= 80 ? 'Optimal (IS 456 Compliant)' : 'Caution — Action Required'}
+                </span>
               </div>
 
-              <div className="mt-2 text-center">
-                <span className="text-xs font-bold text-[#17191D]">
-                  {kpis.portfolioQualityScore >= 80
-                    ? 'High Quality Conformance'
-                    : kpis.portfolioQualityScore >= 60
-                    ? 'Moderate Quality Risk'
-                    : 'Critical Action Required'}
+              {/* Legend */}
+              <div className="flex items-center gap-3 text-[11px] font-semibold">
+                <span className="flex items-center gap-1 text-[#18845B]">
+                  <span className="w-2.5 h-0.5 bg-[#18845B] rounded-full" />
+                  <span>Target</span>
                 </span>
-                <p className="text-[11px] text-[#737B88] mt-0.5">
-                  Derived deterministically from WIRs, NC penalties & audits
-                </p>
+                <span className="flex items-center gap-1 text-[#3168D8]">
+                  <span className="w-2.5 h-0.5 bg-[#3168D8] rounded-full" />
+                  <span>Actual</span>
+                </span>
               </div>
             </div>
 
-            {/* Project Distribution Stats (No tiny bars) */}
-            <div className="grid grid-cols-3 gap-2 py-3 border-t border-[#F1F5F9] text-center">
-              <div className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
-                <span className="text-[10px] font-bold uppercase text-[#16805D] block">Healthy</span>
-                <span className="text-xl font-black text-[#16805D] tabular-nums mt-0.5 block">{healthStats.healthy}</span>
-                <span className="text-[9px] text-[#737B88] font-medium">{Math.round((healthStats.healthy / Math.max(1, projectClusters.length)) * 100)}% portfolio</span>
+            {/* Dual-Gradient Area Chart */}
+            <div className="h-36 w-full my-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={AUDIT_OVERVIEW_SERIES} margin={{ top: 10, right: 8, left: -28, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="homeAuditGreen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#18845B" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#18845B" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="homeAuditBlue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3168D8" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#3168D8" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#6B7280' }} />
+                  <YAxis domain={[50, 100]} tick={{ fontSize: 9, fill: '#6B7280' }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#E6E9ED',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      padding: '4px 8px',
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="expected"
+                    stroke="#18845B"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#homeAuditGreen)"
+                    name="Target"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="actual"
+                    stroke="#3168D8"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#homeAuditBlue)"
+                    name="Actual"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Project Distribution Breakdown */}
+            <div className="py-3 border-t border-[#E6E9ED] space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-[#6B7280]">Portfolio Distribution</span>
+                <span className="text-[#17191D] tabular-nums font-bold">{projectClusters.length} Projects Total</span>
               </div>
-              <div className="p-2 rounded-lg bg-amber-50/60 border border-amber-100">
-                <span className="text-[10px] font-bold uppercase text-[#B7791F] block">At Risk</span>
-                <span className="text-xl font-black text-[#B7791F] tabular-nums mt-0.5 block">{healthStats.atRisk}</span>
-                <span className="text-[9px] text-[#737B88] font-medium">{Math.round((healthStats.atRisk / Math.max(1, projectClusters.length)) * 100)}% portfolio</span>
+
+              {/* Single cohesive segmented status bar */}
+              <div className="w-full h-2 rounded-full overflow-hidden flex bg-[#F6F7F8]">
+                <div
+                  style={{ width: `${(healthStats.healthy / Math.max(1, projectClusters.length)) * 100}%` }}
+                  className="bg-[#18845B] h-full"
+                  title={`Healthy: ${healthStats.healthy}`}
+                />
+                <div
+                  style={{ width: `${(healthStats.atRisk / Math.max(1, projectClusters.length)) * 100}%` }}
+                  className="bg-[#B7791F] h-full"
+                  title={`At Risk: ${healthStats.atRisk}`}
+                />
+                <div
+                  style={{ width: `${(healthStats.critical / Math.max(1, projectClusters.length)) * 100}%` }}
+                  className="bg-[#D92D20] h-full"
+                  title={`Critical: ${healthStats.critical}`}
+                />
               </div>
-              <div className="p-2 rounded-lg bg-rose-50/60 border border-rose-100">
-                <span className="text-[10px] font-bold uppercase text-[#C63F43] block">Critical</span>
-                <span className="text-xl font-black text-[#C63F43] tabular-nums mt-0.5 block">{healthStats.critical}</span>
-                <span className="text-[9px] text-[#737B88] font-medium">Stop-Work</span>
+
+              {/* Status breakdown numbers */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <span className="w-2 h-2 rounded-full bg-[#18845B]" />
+                  <span>Healthy: <strong className="text-slate-900">{healthStats.healthy}</strong></span>
+                </span>
+                <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <span className="w-2 h-2 rounded-full bg-[#B7791F]" />
+                  <span>At Risk: <strong className="text-[#B7791F]">{healthStats.atRisk}</strong></span>
+                </span>
+                <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                  <span className="w-2 h-2 rounded-full bg-[#D92D20]" />
+                  <span>Critical: <strong className="text-[#D92D20]">{healthStats.critical}</strong></span>
+                </span>
               </div>
             </div>
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#F1F5F9]">
-            <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9] text-center">
-              <span className="text-xs text-[#737B88] font-medium block">1st-Pass Pass Rate</span>
+          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#E6E9ED]">
+            <div className="p-2.5 rounded-lg bg-[#F6F7F8] border border-[#E6E9ED] text-center">
+              <span className="text-xs text-[#6B7280] font-medium block">1st-Pass Pass Rate</span>
               <span className="text-base font-bold text-[#17191D] tabular-nums mt-0.5 block">
                 {kpis.portfolioWIRPassRate}%
               </span>
             </div>
-            <div className="p-2.5 rounded-lg bg-[#FAFBFB] border border-[#F1F5F9] text-center">
-              <span className="text-xs text-[#737B88] font-medium block">Open Audit CAs</span>
-              <span className="text-base font-bold text-[#C63F43] tabular-nums mt-0.5 block">
+            <div className="p-2.5 rounded-lg bg-[#F6F7F8] border border-[#E6E9ED] text-center">
+              <span className="text-xs text-[#6B7280] font-medium block">Open Audit CAs</span>
+              <span className="text-base font-bold text-[#D92D20] tabular-nums mt-0.5 block">
                 {state.ncs.filter(n => n.severity === 'Critical').length} holds
               </span>
             </div>
@@ -639,20 +760,20 @@ export function PortfolioPage() {
           BOTTOM SECTION: PROJECTS REQUIRING ATTENTION TABLE
           Clear status dots, tabular numbers, direct drill-down
           ============================================================ */}
-      <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-2xs overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-[#F1F5F9] flex items-center justify-between">
+      <div className="bg-white border border-[#E6E9ED] rounded-xl shadow-2xs overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E6E9ED] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-[#17191D]">
               Projects Requiring Management Attention
             </h3>
-            <span className="text-xs text-[#737B88]">
+            <span className="text-xs text-[#6B7280]">
               · Ranked by risk severity & schedule delay
             </span>
           </div>
 
           <button
             onClick={() => setTab('wip')}
-            className="text-xs font-bold text-[#00594F] hover:underline flex items-center gap-1"
+            className="text-xs font-bold text-[#006B5B] hover:underline flex items-center gap-1"
           >
             View all {projectClusters.length} projects in WIP <ChevronRight size={13} />
           </button>
@@ -661,7 +782,7 @@ export function PortfolioPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left min-w-[760px]">
             <thead>
-              <tr className="text-[#737B88] font-semibold border-b border-[#F1F5F9] bg-[#FAFBFB]">
+              <tr className="text-[#6B7280] font-semibold border-b border-[#E6E9ED] bg-[#F8FAFC]">
                 <th className="py-2.5 px-5">Project Name</th>
                 <th className="py-2.5 px-3">City</th>
                 <th className="py-2.5 px-3">Progress</th>
@@ -672,7 +793,7 @@ export function PortfolioPage() {
                 <th className="py-2.5 px-4"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
+            <tbody className="divide-y divide-[#E6E9ED]">
               {projectClusters
                 .slice()
                 .sort((a, b) => {
@@ -688,31 +809,34 @@ export function PortfolioPage() {
                     <tr
                       key={p.projectId}
                       onClick={() => selectProject(p.projectId)}
-                      className="hover:bg-[#FAFBFB] cursor-pointer transition-colors group"
+                      className="hover:bg-[#F8FAFC] cursor-pointer transition-colors group"
                     >
-                      <td className="py-3 px-5 font-bold text-[#17191D] group-hover:text-[#00594F] transition-colors">
+                      <td className="py-3 px-5 font-bold text-[#17191D] group-hover:text-[#006B5B] transition-colors">
                         {p.name}
                       </td>
-                      <td className="py-3 px-3 text-[#737B88] font-medium">{p.city}</td>
+                      <td className="py-3 px-3 text-[#6B7280] font-medium">{p.city}</td>
                       <td className="py-3 px-3">
-                        <div className="tabular-nums">
+                        <div className="flex items-center gap-2 tabular-nums">
                           <span className="font-bold text-[#17191D]">{p.overallProgress}%</span>
-                          <span className={clsx(
-                            'text-[10px] block font-medium',
-                            isCrit ? 'text-[#C63F43]' : isRisk ? 'text-[#B7791F]' : 'text-[#737B88]'
-                          )}>
-                            {isCrit ? 'Floor 05 Hold' : isRisk ? 'Column Casting' : 'Slab Finishing'}
-                          </span>
+                          <div className="w-16 h-1 bg-[#F6F7F8] rounded-full overflow-hidden border border-[#E6E9ED]">
+                            <div
+                              className={clsx(
+                                'h-full rounded-full',
+                                isCrit ? 'bg-[#D92D20]' : isRisk ? 'bg-[#B7791F]' : 'bg-[#006B5B]'
+                              )}
+                              style={{ width: `${p.overallProgress}%` }}
+                            />
+                          </div>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-right tabular-nums text-[#737B88] font-medium">
+                      <td className="py-3 px-3 text-right tabular-nums text-[#6B7280] font-medium">
                         {commercial.projectBreakdown.find(b => b.projectId === p.projectId)?.soldUnits || 0} / {commercial.projectBreakdown.find(b => b.projectId === p.projectId)?.totalUnits || 0}
                       </td>
                       <td className="py-3 px-3 text-right font-bold tabular-nums text-[#17191D]">
                         {p.qualityScore}/100
                       </td>
                       <td className="py-3 px-3 text-right tabular-nums">
-                        <span className={clsx(p.criticalNCs > 0 ? 'text-[#C63F43] font-bold' : 'text-[#737B88] font-medium')}>
+                        <span className={clsx(p.criticalNCs > 0 ? 'text-[#D92D20] font-bold' : 'text-[#6B7280] font-medium')}>
                           {p.openNCs} {p.criticalNCs > 0 ? `(${p.criticalNCs} crit)` : ''}
                         </span>
                       </td>
@@ -721,11 +845,11 @@ export function PortfolioPage() {
                           <span
                             className={clsx(
                               'w-2 h-2 rounded-full',
-                              isCrit ? 'bg-[#DC2626]' : isRisk ? 'bg-[#D97706]' : 'bg-[#16805D]'
+                              isCrit ? 'bg-[#D92D20]' : isRisk ? 'bg-[#B7791F]' : 'bg-[#18845B]'
                             )}
                           />
                           <span className={clsx(
-                            isCrit ? 'text-[#C63F43]' : isRisk ? 'text-[#B7791F]' : 'text-[#16805D]'
+                            isCrit ? 'text-[#D92D20]' : isRisk ? 'text-[#B7791F]' : 'text-[#18845B]'
                           )}>
                             {isCrit ? 'Critical Hold' : isRisk ? 'Requires Attention' : 'On Track'}
                           </span>
